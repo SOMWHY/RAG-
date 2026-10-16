@@ -1,5 +1,5 @@
 import mammoth from "mammoth";
-import { PDFParse } from "pdf-parse";
+import { ensurePdfDomShim } from "@/lib/pdf-dom-shim";
 
 export type DocumentPage = { page: number; text: string };
 
@@ -21,6 +21,11 @@ function isDocx(file: File): boolean {
 }
 
 async function parsePdf(buffer: Buffer): Promise<ParsedDocument> {
+  // 动态 import 是必需的：shim 必须在 pdf-parse 求值前把 DOMMatrix 挂到 globalThis，
+  // 静态 import 的求值顺序在 Turbopack 打包后不保证。
+  ensurePdfDomShim();
+  const { PDFParse } = await import("pdf-parse");
+
   // pdf-parse v2 起改为 PDFParse 类；传入副本避免 Buffer 被 worker 接管
   const parser = new PDFParse({ data: new Uint8Array(buffer) });
   try {

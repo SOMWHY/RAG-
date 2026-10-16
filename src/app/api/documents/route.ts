@@ -9,7 +9,8 @@ import { parseDocument } from "@/lib/parse-document";
 export const runtime = "nodejs";
 export const maxDuration = 300;
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+// Vercel 请求体硬上限为 4.5MB，超过会在平台层返回 413，请求根本到不了本函数
+const MAX_FILE_SIZE = 4 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = [".pdf", ".md", ".markdown"];
 /** 分批入库：Postgres 单条语句的参数上限为 65535，避免超长文档一次性插入时触顶 */
 const INGEST_BATCH_SIZE = 32;
@@ -59,7 +60,7 @@ export async function POST(request: Request) {
     return Response.json({ error: "请选择文件" }, { status: 400 });
   }
   if (file.size > MAX_FILE_SIZE) {
-    return Response.json({ error: "文件不能超过 10MB" }, { status: 400 });
+    return Response.json({ error: "文件不能超过 4MB" }, { status: 400 });
   }
   const lowerName = file.name.toLowerCase();
   if (!ALLOWED_EXTENSIONS.some((ext) => lowerName.endsWith(ext))) {

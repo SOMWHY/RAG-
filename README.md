@@ -6,7 +6,7 @@
 
 **检索与问答**
 
-- 文档上传：支持 PDF、Markdown，含拖拽上传，单文件上限 10MB
+- 文档上传：支持 PDF、Markdown，含拖拽上传，单文件上限 4MB（对齐 Vercel 请求体限制）
 - 分页解析：PDF 按页提取文本，来源引用可定位到具体页码
 - 智能切分：段落感知切分（1800 字符 / 240 重叠），保留页码归属
 - 向量化：批量 embedding + 分批入库，写入 pgvector（1536 维）
@@ -172,11 +172,11 @@ CREATE EXTENSION IF NOT EXISTS vector;
 
 ### 5. 部署前必须知道的两个限制
 
-**① 请求体大小**：`MAX_FILE_SIZE` 目前是 10MB，但 Vercel Serverless Function 的请求体上限是 **4.5MB**（Vercel 硬限制，改 `maxDuration` 无效）。超过 4.5MB 的文档会上传失败。解决办法：把 `src/app/api/documents/route.ts` 的 `MAX_FILE_SIZE` 改成 4MB，或改用 Vercel Blob 做客户端直传。
+**① 请求体大小**：Vercel Serverless Function 的请求体硬上限是 **4.5MB**，超过直接返回 `413 FUNCTION_PAYLOAD_TOO_LARGE`，请求到不了你的函数。代码里 `MAX_FILE_SIZE` 已按 4MB 校验。要支持更大的文档需改用 Vercel Blob 客户端直传。
 
-**② 函数超时**：`/api/documents` 设了 `maxDuration = 300`，而 **Hobby 套餐上限 60s**。在 Hobby 上要么改成 `60`，要么升级 Pro；大文档建议改为异步任务 + 状态轮询。
+**② 函数超时**：`/api/documents` 设了 `maxDuration = 300`。启用 Fluid compute 的项目（新建项目默认开启）**Hobby 的默认时长和上限都是 300s**，所以这个值在 Hobby 上合法。若部署后上传大文档出现 `504 FUNCTION_INVOCATION_TIMEOUT`，说明确实跑不完，需改为异步任务 + 状态轮询。
 
-**③ 没有鉴权**：项目是单用户设计，部署到公网后任何人都能上传文档、发起问答，会真实消耗你的 API 额度。建议至少加一层访问口令，或只在 Vercel 上设置密码保护（Vercel 的 Deployment Protection / Password Protection 可零代码开启）。
+**③ 访问保护**：项目是单用户设计，部署到公网后任何人都能上传文档、发起问答，会真实消耗你的 API 额度。免费的方案是 Vercel 的 **Vercel Authentication**（所有套餐可用），注意环境要选 `All Deployments`，否则生产域名仍公开。**Password Protection 仅 Pro（$20/月/项目）及以上可用，Hobby 没有。**
 
 ## 故障排查
 
@@ -193,6 +193,16 @@ CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
 再 `npm run db:migrate`。
+
+### 上传 PDF 报 `Failed to load external module pdf-parse...: ReferenceError: DOMMatrix is not defined`
+
+serverless 环境专属，本地通常不复现。链路是：
+
+1. pdfjs 在 Node 下靠 `require("@napi-rs/canvas")` 补 `DOMMatrix`（`pdfjs-dist/legacy/build/pdf.mjs:14336`）
+2. 该 require 是 `createRequire` 动态调用，原生模块常没被打进产物，失败时 pdfjs **只 warn 不抛错**
+3. 于是 `pdf.mjs:15620` 模块顶层的 `new DOMMatrix()` 直接抛 `ReferenceError`
+
+本项目只用 `getText()` 做文本提取，不涉及渲染（矩阵运算只在渲染路径用到），因此 `src/lib/pdf-dom-shim.ts` 提供最小实现，并在 `parseDocument()` 里以**动态 import** 保证 shim 先于 pdf-parse 求值。
 
 ### 上传 PDF 报 `Setting up fake worker failed: Cannot find module ... pdf.worker.mjs`
 

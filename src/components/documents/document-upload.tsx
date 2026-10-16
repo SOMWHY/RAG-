@@ -86,7 +86,7 @@ export function DocumentUpload({ onUploaded }: DocumentUploadProps) {
             <span className="text-xs font-medium text-ink-200">
               {isDragging ? "松手即可上传" : "拖拽文件到此处，或点击选择"}
             </span>
-            <span className="text-[11px] text-ink-500">支持 PDF、Markdown · 最大 10MB</span>
+            <span className="text-[11px] text-ink-500">支持 PDF、Markdown · 最大 4MB</span>
           </>
         )}
         <input
