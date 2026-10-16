@@ -234,6 +234,26 @@ curl -H "Authorization: Bearer $AI_API_KEY" https://<你的网关>/v1/models
 
 再把 `AI_CHAT_MODEL` / `AI_EMBEDDING_MODEL` 改成列表里存在的名字。注意：这不是代码问题，也不一定是密钥无效——网关有密钥但无该模型通道时同样报这个错。
 
+### 生成摘要 / 思维导图报 `服务暂时不可用…上游服务、网络链路或代理返回异常响应`
+
+聊天正常但结构化输出失败时，是网关不接受 `generateObject` 的请求形态，不是代码 bug。
+
+实测（同一模型、同一网关）：
+
+| 请求形态 | 结果 |
+| --- | --- |
+| 普通 chat completion | ✅ 200 |
+| `response_format: json_object` | ❌ 400 |
+| `response_format: json_schema`（**简单** schema） | ✅ 200 |
+| `response_format: json_schema`（**复杂** schema：嵌套数组 / optional 字段） | ❌ 400 |
+| function calling / tools | ✅ 200 |
+
+AI SDK v7 的 `generateObject` **固定**使用 `json_schema`，且 `mode` 参数已失效（`generateObject` 本身也已标记废弃），无法降级到 function calling——所以复杂 schema 必然踩中网关的 400。
+
+本项目因此改用 `src/lib/structured-output.ts` 的 `generateStructured()`：**纯文本生成 + 自行提取 JSON + zod 校验**（失败自动纠错重试 1 次）。只依赖最基础的 `/v1/chat/completions`，任何 OpenAI 兼容网关都能用。
+
+换成 OpenAI 官方后若想恢复原生结构化输出，把两个路由改回 `generateObject` 即可。
+
 ### 应用报 `read ECONNRESET` / 连接超时
 
 本项目实测出现过间歇性 `read ECONNRESET`：同一时刻直连端点连续成功、`-pooler` 端点 3 次中仅 1 次成功，稍后恢复后又 5/5 正常。多为 Neon 计算节点冷启动或本地网络抖动。

@@ -1,8 +1,7 @@
-import { generateObject } from "ai";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { chunks, documents } from "@/db/schema";
-import { getChatModel } from "@/lib/ai";
+import { generateStructured } from "@/lib/structured-output";
 import { summarySchema } from "@/lib/schema/summary";
 
 export const runtime = "nodejs";
@@ -50,11 +49,17 @@ export async function POST(_request: Request, context: RouteContext) {
     const context = await loadContext(id);
     if (!context) return Response.json({ error: "文档没有可摘要的内容" }, { status: 400 });
 
-    const { object } = await generateObject({
-      model: getChatModel(),
+    const object = await generateStructured({
       schema: summarySchema,
-      prompt: `你是文档分析助手。请基于以下文档片段，输出结构化摘要，全部使用中文。
-要求：只依据文档内容，不要补充外部信息；关键数据保留原文数值与单位。
+      schemaHint:
+        '{"title": string, "abstract": string, ' +
+        '"keyPoints": [{"point": string, "sourceRef": number 可选}], ' +
+        '"keyData": [{"label": string, "value": string}], ' +
+        '"conclusions": string[], "tags": string[]}',
+      prompt: `你是文档分析助手。请基于以下文档片段输出结构化摘要，全部使用中文。
+要求：只依据文档内容，不要补充外部信息；关键数据保留原文数值与单位；
+keyPoints 3-6 条，尽量标注 sourceRef（对应上下文里的 [来源 N]）；
+keyData 没有则为空数组；conclusions 2-4 条；tags 3-6 个。
 
 文档片段：
 ${context}`,

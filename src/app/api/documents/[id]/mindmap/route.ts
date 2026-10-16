@@ -1,8 +1,7 @@
-import { generateObject } from "ai";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { chunks, documents } from "@/db/schema";
-import { getChatModel } from "@/lib/ai";
+import { generateStructured } from "@/lib/structured-output";
 import { mindmapSchema } from "@/lib/schema/mindmap";
 
 export const runtime = "nodejs";
@@ -46,9 +45,9 @@ export async function POST(_request: Request, context: RouteContext) {
     const context = await loadContext(id);
     if (!context) return Response.json({ error: "文档没有可生成导图的内容" }, { status: 400 });
 
-    const { object } = await generateObject({
-      model: getChatModel(),
+    const object = await generateStructured({
       schema: mindmapSchema,
+      schemaHint: '{"nodes": [{"id": string, "label": string, "parentId": string 或 null, "weight": number 可选}]}',
       prompt: `你是知识结构化助手。请把下面的文档片段组织成思维导图，全部使用中文。
 要求：有且仅有一个根节点（parentId 为 null），根节点是文档主题；第二层为主要章节，第三层为要点；
 节点数控制在 10-18 个；label 不超过 16 个字；id 使用简短英文且全局唯一。
