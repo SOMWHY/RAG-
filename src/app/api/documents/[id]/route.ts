@@ -1,6 +1,7 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { chunks, documentStats, documents } from "@/db/schema";
+import { requireSession } from "@/lib/auth/session-server";
 
 export const runtime = "nodejs";
 
@@ -9,8 +10,16 @@ type RouteContext = { params: Promise<{ id: string }> };
 /** 文档详情：元信息 + 全部片段，供详情面板溯源浏览 */
 export async function GET(_request: Request, context: RouteContext) {
   const { id } = await context.params;
+
+  const session = await requireSession();
+  if (session instanceof Response) return session;
+
   try {
-    const [document] = await db.select().from(documents).where(eq(documents.id, id));
+    // 越权一律返回 404，不泄露资源是否存在
+    const [document] = await db
+      .select()
+      .from(documents)
+      .where(and(eq(documents.id, id), eq(documents.userId, session.sub)));
     if (!document) return Response.json({ error: "文档不存在" }, { status: 404 });
 
     const rows = await db

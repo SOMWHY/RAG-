@@ -3,6 +3,7 @@ import { desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { chunks, documentStats, documents } from "@/db/schema";
 import { getEmbeddingModel } from "@/lib/ai";
+import { requireSession } from "@/lib/auth/session-server";
 import { splitPages } from "@/lib/chunker";
 import { parseDocument } from "@/lib/parse-document";
 
@@ -20,6 +21,9 @@ function estimateTokenCount(content: string): number {
 }
 
 export async function GET() {
+  const session = await requireSession();
+  if (session instanceof Response) return session;
+
   try {
     const rows = await db
       .select({
@@ -36,6 +40,7 @@ export async function GET() {
       })
       .from(documents)
       .leftJoin(documentStats, eq(documentStats.documentId, documents.id))
+      .where(eq(documents.userId, session.sub))
       .orderBy(desc(documents.createdAt));
 
     return Response.json(
@@ -53,6 +58,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const session = await requireSession();
+  if (session instanceof Response) return session;
+
   const formData = await request.formData();
   const file = formData.get("file");
 
@@ -79,6 +87,7 @@ export async function POST(request: Request) {
     const [document] = await db
       .insert(documents)
       .values({
+        userId: session.sub,
         name: file.name,
         mimeType: file.type || "text/markdown",
         size: file.size,

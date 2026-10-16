@@ -1,6 +1,7 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { conversationMessages, conversations } from "@/db/schema";
+import { requireSession } from "@/lib/auth/session-server";
 import type { ChatUIMessage } from "@/lib/chat-message";
 
 export const runtime = "nodejs";
@@ -25,8 +26,27 @@ function normalize(message: IncomingMessage) {
   };
 }
 
+/**
+ * 会话归属校验。消息表本身没有 userId，若不先校验会话归属，
+ * 任何人拿着 conversationId 就能读写别人的聊天记录。
+ */
+async function isOwnedConversation(id: string, userId: string): Promise<boolean> {
+  const [row] = await db
+    .select({ id: conversations.id })
+    .from(conversations)
+    .where(and(eq(conversations.id, id), eq(conversations.userId, userId)));
+  return Boolean(row);
+}
+
 export async function GET(_request: Request, context: RouteContext) {
   const { id } = await context.params;
+
+  const session = await requireSession();
+  if (session instanceof Response) return session;
+  if (!(await isOwnedConversation(id, session.sub))) {
+    return Response.json({ error: "会话不存在" }, { status: 404 });
+  }
+
   try {
     const rows = await db
       .select({
@@ -55,6 +75,13 @@ export async function GET(_request: Request, context: RouteContext) {
 
 export async function POST(request: Request, context: RouteContext) {
   const { id } = await context.params;
+
+  const session = await requireSession();
+  if (session instanceof Response) return session;
+  if (!(await isOwnedConversation(id, session.sub))) {
+    return Response.json({ error: "会话不存在" }, { status: 404 });
+  }
+
   try {
     const body = (await request.json()) as {
       messages?: IncomingMessage[];

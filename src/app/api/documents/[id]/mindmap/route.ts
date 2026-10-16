@@ -1,6 +1,7 @@
-import { asc, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { chunks, documents } from "@/db/schema";
+import { requireSession } from "@/lib/auth/session-server";
 import { generateStructured } from "@/lib/structured-output";
 import { mindmapSchema } from "@/lib/schema/mindmap";
 
@@ -11,6 +12,7 @@ const CONTEXT_CHUNKS = 24;
 
 type RouteContext = { params: Promise<{ id: string }> };
 
+/** 调用前必须已确认该文档属于当前用户（本文件的两个调用点都在归属校验之后） */
 async function loadContext(documentId: string) {
   const rows = await db
     .select({ content: chunks.content })
@@ -23,8 +25,15 @@ async function loadContext(documentId: string) {
 
 export async function GET(_request: Request, context: RouteContext) {
   const { id } = await context.params;
+
+  const session = await requireSession();
+  if (session instanceof Response) return session;
+
   try {
-    const [document] = await db.select().from(documents).where(eq(documents.id, id));
+    const [document] = await db
+      .select()
+      .from(documents)
+      .where(and(eq(documents.id, id), eq(documents.userId, session.sub)));
     if (!document) return Response.json({ error: "文档不存在" }, { status: 404 });
     return Response.json({ mindmap: document.mindmap ?? null });
   } catch (error) {
@@ -35,8 +44,15 @@ export async function GET(_request: Request, context: RouteContext) {
 
 export async function POST(_request: Request, context: RouteContext) {
   const { id } = await context.params;
+
+  const session = await requireSession();
+  if (session instanceof Response) return session;
+
   try {
-    const [document] = await db.select().from(documents).where(eq(documents.id, id));
+    const [document] = await db
+      .select()
+      .from(documents)
+      .where(and(eq(documents.id, id), eq(documents.userId, session.sub)));
     if (!document) return Response.json({ error: "文档不存在" }, { status: 404 });
     if (document.status !== "ready") {
       return Response.json({ error: "文档尚未处理完成" }, { status: 409 });
@@ -56,7 +72,11 @@ export async function POST(_request: Request, context: RouteContext) {
 ${context}`,
     });
 
-    await db.update(documents).set({ mindmap: object }).where(eq(documents.id, id));
+    // where 里仍带上 userId 做双保险，避免将来新增调用路径时漏掉归属校验
+    await db
+      .update(documents)
+      .set({ mindmap: object })
+      .where(and(eq(documents.id, id), eq(documents.userId, session.sub)));
     return Response.json(object);
   } catch (error) {
     console.error("generate mindmap failed", error);

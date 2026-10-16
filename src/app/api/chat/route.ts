@@ -5,6 +5,7 @@ import {
   toUIMessageStream,
 } from "ai";
 import { getChatModel } from "@/lib/ai";
+import { requireSession } from "@/lib/auth/session-server";
 import { getMessageText, type ChatUIMessage, type RagSource } from "@/lib/chat-message";
 import { retrieveChunks } from "@/lib/search";
 
@@ -22,6 +23,9 @@ function buildContext(sources: RagSource[], contents: string[]): string {
 }
 
 export async function POST(request: Request) {
+  const session = await requireSession();
+  if (session instanceof Response) return session;
+
   try {
     const body = (await request.json()) as { messages?: ChatUIMessage[] };
     const messages = body.messages ?? [];
@@ -30,7 +34,8 @@ export async function POST(request: Request) {
     const query = latestUser ? getMessageText(latestUser) : "";
     if (!query) return Response.json({ error: "请输入问题" }, { status: 400 });
 
-    const hits = await retrieveChunks(query, 6);
+    // 检索只在当前用户的文档范围内进行
+    const hits = await retrieveChunks(query, 6, session.sub);
     const sources: RagSource[] = hits.map((hit) => ({
       id: hit.id,
       documentName: hit.documentName,

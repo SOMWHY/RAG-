@@ -9,8 +9,8 @@
 - 文档上传：支持 PDF、Markdown，含拖拽上传，单文件上限 4MB（对齐 Vercel 请求体限制）
 - 分页解析：PDF 按页提取文本，来源引用可定位到具体页码
 - 智能切分：段落感知切分（1800 字符 / 240 重叠），保留页码归属
-- 向量化：批量 embedding + 分批入库，写入 pgvector（1536 维）
-- 语义检索：余弦相似度 + HNSW 索引，带相似度阈值过滤
+- 向量化：批量 embedding + 分批入库，写入 pgvector（2048 维）
+- 语义检索：余弦相似度 + 阈值过滤（2048 维超过 pgvector 索引上限，走精确扫描，见「向量索引」）
 - 流式问答：单一流式连接返回文本，**来源引用随流下发，不产生二次请求**
 - 来源追溯：每条回答附来源卡片（文档名 + 页码 + 相似度）
 
@@ -24,6 +24,13 @@
 
 - 对话历史持久化：刷新后可恢复，支持多会话切换与删除
 - 响应式：桌面三栏（文档 / 聊天 / 详情），移动端底部标签切换
+
+**账号与数据隔离**
+
+- GitHub OAuth 登录：无注册表单、无密码，任何 GitHub 账号均可登录
+- 全站强制登录：未登录访问首页跳转 `/login`，调用 API 返回 401
+- 数据隔离：文档、会话、消息按用户隔离，越权访问一律 404（不泄露资源是否存在）
+- 检索隔离：向量检索只在自己的文档范围内进行，不会命中他人片段
 
 ## 技术栈
 
@@ -80,8 +87,26 @@ npm run dev
 | `AI_BASE_URL` | 可选，默认走代码内置网关；建议显式指定 |
 | `AI_CHAT_MODEL` | 默认 `gpt-5.5`（须在当前网关可用） |
 | `AI_EMBEDDING_MODEL` | 默认 `nemotron-3-embed-1b`（2048 维） |
+| `AUTH_SECRET` | 会话 JWT 签名密钥，必填。`openssl rand -base64 32` 生成 |
+| `AUTH_GITHUB_ID` | GitHub OAuth App 的 Client ID |
+| `AUTH_GITHUB_SECRET` | GitHub OAuth App 的 Client Secret |
+| `AUTH_REDIRECT_BASE_URL` | 可选。把 OAuth 回调固定到生产域名，用于预览环境（见下） |
 
 > 模型与维度的唯一来源是 `src/lib/ai-config.ts`。**更换 embedding 模型必须同步改 `EMBEDDING_DIMENSIONS` 并重新迁移**，否则入库会因维度不匹配失败。
+
+### 配置 GitHub 登录
+
+1. 打开 https://github.com/settings/developers → **New OAuth App**
+2. **Authorization callback URL** 填写（可填多行以支持多环境）：
+   ```
+   http://localhost:3000/api/auth/github/callback
+   https://<你的生产域名>/api/auth/github/callback
+   ```
+3. 把 Client ID / Client Secret 填进 `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET`
+
+申请的权限只有 `read:user`，只读取昵称与头像，不接触仓库。
+
+**关于 `AUTH_REDIRECT_BASE_URL`**：Vercel 预览环境每次域名都不同，而 GitHub 只能登记固定回调地址。给预览环境设置该变量为生产域名后，预览环境发起的登录会走生产回调，**登录完成后会落在生产站点**；不设置的话预览环境登录会报 `redirect_uri` 不匹配。
 
 ## 向量索引
 
@@ -98,13 +123,16 @@ npm run dev
 
 ## 数据模型
 
-- **documents**：`name` / `mimeType` / `size` / `status`(processing\|ready\|failed) / `pageCount` / `summary`(jsonb) / `mindmap`(jsonb)
+- **users**：`githubId`(unique) / `login` / `name` / `avatarUrl`
+- **documents**：`userId` / `name` / `mimeType` / `size` / `status`(processing\|ready\|failed) / `pageCount` / `summary`(jsonb) / `mindmap`(jsonb)
 - **chunks**：`documentId` / `content` / `chunkIndex` / `pageNumber` / `tokenCount` / `embedding`(vector 2048，无向量索引，见「向量索引」)
 - **document_stats**：`documentId`(unique) / `chunkCount` / `avgDistance`
-- **conversations**：`title` / `createdAt` / `updatedAt`
+- **conversations**：`userId` / `title` / `createdAt` / `updatedAt`
 - **conversation_messages**：`conversationId` / `role` / `parts`(jsonb) / `metadata`(jsonb)
 
-迁移文件位于 `drizzle/`：`0000` 初始结构、`0001` 会话与摘要字段、`0002` 向量维度改为 2048 并移除超限索引。**不要修改已应用的迁移文件。**
+`chunks` 与 `conversation_messages` **刻意不加 userId**，分别通过 join `documents`、join `conversations` 过滤，避免冗余字段与同步问题。
+
+迁移文件位于 `drizzle/`：`0000` 初始结构、`0001` 会话与摘要字段、`0002` 向量维度改为 2048 并移除超限索引、`0003` 新增 users 与 userId 列。**不要修改已应用的迁移文件。**
 
 ## API
 
@@ -120,6 +148,12 @@ npm run dev
 | GET/POST | `/api/conversations` | 会话列表 / 新建会话 |
 | DELETE | `/api/conversations/[id]` | 删除会话 |
 | GET/POST | `/api/conversations/[id]/messages` | 读取 / 追加会话消息 |
+| GET | `/api/auth/github` | 发起 GitHub 授权（302 到 GitHub） |
+| GET | `/api/auth/github/callback` | OAuth 回调，签发会话 |
+| POST | `/api/auth/logout` | 登出 |
+| GET | `/api/auth/me` | 当前登录用户 |
+
+除 `/login` 与 `/api/auth/*` 外，所有路径都要求已登录：页面 302 到 `/login`，`/api/*` 返回 401。
 
 ## 部署（Vercel）
 
@@ -159,6 +193,14 @@ git push -u origin main
 | `AI_BASE_URL` | 网关地址，如 `https://yujianwudi.top/v1` |
 | `AI_CHAT_MODEL` | 可选，默认 `gpt-5.5` |
 | `AI_EMBEDDING_MODEL` | 可选，默认 `nemotron-3-embed-1b` |
+| `AUTH_SECRET` | **必填**，`openssl rand -base64 32` 生成 |
+| `AUTH_GITHUB_ID` | **必填**，GitHub OAuth App 的 Client ID |
+| `AUTH_GITHUB_SECRET` | **必填**，Client Secret |
+| `AUTH_REDIRECT_BASE_URL` | 生产域名，如 `https://your-app.vercel.app`（预览环境需要） |
+
+> `AUTH_SECRET` 缺失会导致每次冷启动签名密钥不同，登录后立刻掉线。
+
+GitHub OAuth App 的回调地址要把生产域名加上（本地 `http://localhost:3000/...` 与生产两条）。
 
 ### 4. 确认数据库
 
@@ -168,7 +210,7 @@ Neon 需启用 pgvector（已在本库启用）：
 CREATE EXTENSION IF NOT EXISTS vector;
 ```
 
-迁移已在本地应用，Vercel 部署时**无需**再跑。若要在 CI 里跑，需能连到 `DATABASE_URL_UNPOOLED`。
+迁移已在本地应用到 `0003`，Vercel 部署时**无需**再跑。若要在 CI 里跑，需能连到 `DATABASE_URL_UNPOOLED`。
 
 ### 5. 部署前必须知道的两个限制
 
@@ -253,6 +295,26 @@ AI SDK v7 的 `generateObject` **固定**使用 `json_schema`，且 `mode` 参�
 本项目因此改用 `src/lib/structured-output.ts` 的 `generateStructured()`：**纯文本生成 + 自行提取 JSON + zod 校验**（失败自动纠错重试 1 次）。只依赖最基础的 `/v1/chat/completions`，任何 OpenAI 兼容网关都能用。
 
 换成 OpenAI 官方后若想恢复原生结构化输出，把两个路由改回 `generateObject` 即可。
+
+### 登录后立刻掉线，或反复跳回登录页
+
+几乎总是 `AUTH_SECRET` 的问题：
+
+- **没配** → 每次冷启动签名密钥不同，旧会话验签失败
+- **配了但各环境值不同** → 跨环境互相验签失败
+
+用 `openssl rand -base64 32` 生成，**同一个值**填到所有环境（本地、生产、预览）。
+
+### 点登录跳回 `/login?error=xxx`
+
+| 参数 | 含义 |
+| --- | --- |
+| `config` | 缺 `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` |
+| `state` | state 校验失败，通常是超过 10 分钟才完成授权 |
+| `code` | 未拿到授权码，多半是用户取消了授权 |
+| `oauth` | GitHub 侧失败：回调地址未登记、Client ID/Secret 错，或网络不通 |
+
+GitHub 报 `redirect_uri` 不匹配 = OAuth App 里没登记当前回调地址。预览环境域名不固定，需要给预览环境设 `AUTH_REDIRECT_BASE_URL` 指向生产域名。
 
 ### 应用报 `read ECONNRESET` / 连接超时
 

@@ -4,6 +4,7 @@ import { useChat } from "@ai-sdk/react";
 import { clsx } from "clsx";
 import { BrainCircuit, Files, MessageSquare, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { UserMenu } from "@/components/auth/user-menu";
 import { ChatInput } from "@/components/chat/chat-input";
 import { MessageList } from "@/components/chat/message-list";
 import { ConversationList } from "@/components/conversation/conversation-list";
@@ -136,6 +137,7 @@ export default function HomePage() {
           <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[11px] text-ink-400">
             {readyCount} 篇已就绪
           </span>
+          <UserMenu />
         </div>
       </header>
 

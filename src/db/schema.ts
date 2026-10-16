@@ -13,10 +13,25 @@ import { EMBEDDING_DIMENSIONS } from "@/lib/ai-config";
 import type { Mindmap } from "@/lib/schema/mindmap";
 import type { DocumentSummary } from "@/lib/schema/summary";
 
+/** GitHub 登录用户。所有业务数据的隔离锚点 */
+export const users = pgTable("users", {
+  id: uuid("id").defaultRandom().primaryKey(),
+  /** GitHub 用户 id，稳定且不受改名影响，用于识别同一用户 */
+  githubId: text("github_id").notNull().unique(),
+  /** GitHub 用户名，可能改名 */
+  login: text("login").notNull(),
+  name: text("name"),
+  avatarUrl: text("avatar_url"),
+  createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
+});
+
 export const documents = pgTable(
   "documents",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
     name: text("name").notNull(),
     mimeType: text("mime_type").notNull(),
     size: integer("size").notNull(),
@@ -27,7 +42,10 @@ export const documents = pgTable(
     mindmap: jsonb("mindmap").$type<Mindmap | null>(),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("documents_created_at_idx").on(table.createdAt)],
+  (table) => [
+    index("documents_user_id_idx").on(table.userId),
+    index("documents_created_at_idx").on(table.createdAt),
+  ],
 );
 
 export const chunks = pgTable(
@@ -66,11 +84,17 @@ export const conversations = pgTable(
   "conversations",
   {
     id: uuid("id").defaultRandom().primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
     title: text("title").notNull().default("新对话"),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  (table) => [index("conversations_updated_at_idx").on(table.updatedAt)],
+  (table) => [
+    index("conversations_user_id_idx").on(table.userId),
+    index("conversations_updated_at_idx").on(table.updatedAt),
+  ],
 );
 
 export const conversationMessages = pgTable(

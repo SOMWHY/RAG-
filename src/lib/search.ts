@@ -20,9 +20,15 @@ export type RetrievedChunk = {
 
 /**
  * 语义检索：问题向量化 → pgvector 余弦相似度 → 取最相关的若干片段。
- * 走 chunks_embedding_idx（HNSW / vector_cosine_ops）。
+ *
+ * userId 是必填的第三个参数：**漏了它不会报错**，只会导致检索到别人的向量，
+ * 答案莫名其妙却查不出原因。chunks 表刻意不加 userId，统一靠 join documents 过滤。
  */
-export async function retrieveChunks(query: string, limit = 6): Promise<RetrievedChunk[]> {
+export async function retrieveChunks(
+  query: string,
+  limit = 6,
+  userId: string,
+): Promise<RetrievedChunk[]> {
   const { embedding } = await embed({ model: getEmbeddingModel(), value: query });
 
   const distance = cosineDistance(chunks.embedding, embedding);
@@ -44,6 +50,7 @@ export async function retrieveChunks(query: string, limit = 6): Promise<Retrieve
       and(
         sql`${chunks.embedding} is not null`,
         eq(documents.status, "ready"),
+        eq(documents.userId, userId),
         gt(similarity, MIN_SIMILARITY),
       ),
     )

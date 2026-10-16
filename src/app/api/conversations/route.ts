@@ -1,10 +1,14 @@
-import { desc } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { conversations } from "@/db/schema";
+import { requireSession } from "@/lib/auth/session-server";
 
 export const runtime = "nodejs";
 
 export async function GET() {
+  const session = await requireSession();
+  if (session instanceof Response) return session;
+
   try {
     const rows = await db
       .select({
@@ -14,6 +18,7 @@ export async function GET() {
         updatedAt: conversations.updatedAt,
       })
       .from(conversations)
+      .where(eq(conversations.userId, session.sub))
       .orderBy(desc(conversations.updatedAt))
       .limit(50);
     return Response.json(rows);
@@ -24,11 +29,17 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const session = await requireSession();
+  if (session instanceof Response) return session;
+
   try {
     const body = (await request.json().catch(() => ({}))) as { title?: string };
     const [conversation] = await db
       .insert(conversations)
-      .values({ title: body.title?.trim().slice(0, 60) || "新对话" })
+      .values({
+        userId: session.sub,
+        title: body.title?.trim().slice(0, 60) || "新对话",
+      })
       .returning();
     return Response.json(conversation);
   } catch (error) {
