@@ -43,21 +43,29 @@ export async function GET(_request: Request, context: RouteContext) {
 
   const session = await requireSession();
   if (session instanceof Response) return session;
-  if (!(await isOwnedConversation(id, session.sub))) {
-    return Response.json({ error: "会话不存在" }, { status: 404 });
-  }
 
   try {
-    const rows = await db
-      .select({
-        id: conversationMessages.id,
-        role: conversationMessages.role,
-        parts: conversationMessages.parts,
-        metadata: conversationMessages.metadata,
-      })
-      .from(conversationMessages)
-      .where(eq(conversationMessages.conversationId, id))
-      .orderBy(asc(conversationMessages.createdAt), asc(conversationMessages.id));
+    /*
+     * 归属校验与取消息之间没有依赖，并发发出，省掉一次数据库往返。
+     * 没有合并成 innerJoin：那样「会话存在但没消息」和「会话不属于你」
+     * 都会得到空结果，就无法再对越权返回 404 了。
+     * 未通过校验时 rows 直接丢弃，不会泄露给请求方。
+     */
+    const [owned, rows] = await Promise.all([
+      isOwnedConversation(id, session.sub),
+      db
+        .select({
+          id: conversationMessages.id,
+          role: conversationMessages.role,
+          parts: conversationMessages.parts,
+          metadata: conversationMessages.metadata,
+        })
+        .from(conversationMessages)
+        .where(eq(conversationMessages.conversationId, id))
+        .orderBy(asc(conversationMessages.createdAt), asc(conversationMessages.id)),
+    ]);
+
+    if (!owned) return Response.json({ error: "会话不存在" }, { status: 404 });
 
     return Response.json(
       rows.map((row) => ({

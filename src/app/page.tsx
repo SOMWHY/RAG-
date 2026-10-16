@@ -57,12 +57,19 @@ export default function HomePage() {
   conversationIdRef.current = conversationId;
   /** 会话加载请求序号：连点多个会话时，只认最后一次请求的结果 */
   const loadSeqRef = useRef(0);
+  /**
+   * 已加载过的会话消息缓存。切回访问过的会话直接命中，既不发请求也不显示
+   * 骨架 —— 「秒切」就是靠它。新消息落库后同步更新，删除会话时清掉条目。
+   */
+  const messagesCacheRef = useRef<Map<string, ChatUIMessage[]>>(new Map());
 
   const { messages, sendMessage, setMessages, status, stop, error } = useChat<ChatUIMessage>({
     // 首轮问答结束后把用户提问与助手回答一并落库，保证顺序且不影响首字延迟
     onFinish: ({ messages: all }) => {
       const id = conversationIdRef.current;
       if (!id) return;
+      // 同步缓存，否则切走再切回来会丢掉刚生成的消息
+      messagesCacheRef.current.set(id, all);
       const pending = all.slice(-2);
       // 首轮对话用提问内容作为会话标题
       const title =
@@ -72,6 +79,8 @@ export default function HomePage() {
   });
 
   const isStreaming = status === "submitted" || status === "streaming";
+  const isStreamingRef = useRef(false);
+  isStreamingRef.current = isStreaming;
   const readyCount = documents.filter((doc) => doc.status === "ready").length;
   const hasDocuments = readyCount > 0;
   const selectedDocument = documents.find((doc) => doc.id === selectedId) ?? null;
@@ -89,9 +98,24 @@ export default function HomePage() {
    */
   const openConversation = useCallback(
     async (id: string) => {
-      const seq = ++loadSeqRef.current;
+      const leaving = conversationIdRef.current;
+      // 流式还没结束就切走，缓存里存的是旧内容，丢掉让它下次重新拉取
+      if (leaving && leaving !== id && isStreamingRef.current) {
+        messagesCacheRef.current.delete(leaving);
+      }
+
       setConversationId(id);
       setSelectedId(null);
+
+      // 命中缓存：直接渲染，不发请求也不显示骨架
+      const cached = messagesCacheRef.current.get(id);
+      if (cached) {
+        setMessages(cached);
+        setIsLoadingConversation(false);
+        return;
+      }
+
+      const seq = ++loadSeqRef.current;
       setMessages([]);
       setIsLoadingConversation(true);
 
@@ -99,6 +123,7 @@ export default function HomePage() {
       // 只认最后一次请求的结果，避免慢的旧请求后发先至覆盖新会话
       if (seq !== loadSeqRef.current) return;
 
+      messagesCacheRef.current.set(id, history);
       setMessages(history);
       setIsLoadingConversation(false);
     },
@@ -114,7 +139,10 @@ export default function HomePage() {
     loadSeqRef.current += 1;
     setIsCreatingConversation(true);
     try {
-      setConversationId(await createConversationRequest());
+      const id = await createConversationRequest();
+      // 新会话是空的，直接种进缓存，切走再切回不必请求
+      messagesCacheRef.current.set(id, []);
+      setConversationId(id);
       setSelectedId(null);
       setMessages([]);
       setIsLoadingConversation(false);
@@ -148,6 +176,7 @@ export default function HomePage() {
 
   const deleteConversation = (id: string) => {
     void removeConversation(id);
+    messagesCacheRef.current.delete(id);
     if (id === conversationId) {
       setConversationId(null);
       setMessages([]);
