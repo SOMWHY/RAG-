@@ -38,7 +38,7 @@ export function MessageItem({ message }: MessageItemProps) {
           )}
         >
           {isUser ? (
-            <p className="whitespace-pre-wrap break-words">{text}</p>
+            <p className="whitespace-pre-wrap wrap-break-word">{text}</p>
           ) : (
             <div className="prose-rag">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>{text}</ReactMarkdown>

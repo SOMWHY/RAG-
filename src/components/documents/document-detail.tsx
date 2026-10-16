@@ -139,7 +139,7 @@ export function DocumentDetail({ document, onClose, onUpdated }: DocumentDetailP
   ];
 
   return (
-    <section className="animate-rise-in flex h-full w-full flex-col overflow-hidden border-l border-white/10 bg-ink-900/70 backdrop-blur-2xl lg:w-[520px]">
+    <section className="animate-rise-in flex h-full w-full flex-col overflow-hidden border-l border-white/10 bg-ink-900/70 backdrop-blur-2xl lg:w-130">
       <header className="flex shrink-0 items-start justify-between gap-3 border-b border-white/10 px-4 py-3">
         <div className="min-w-0">
           <h3 className="truncate text-sm font-semibold text-ink-100">{document.name}</h3>
@@ -192,7 +192,7 @@ export function DocumentDetail({ document, onClose, onUpdated }: DocumentDetailP
           />
         ) : tab === "mindmap" ? (
           mindmapLoading ? (
-            <div className="skeleton-shimmer h-[380px] rounded-xl" />
+            <div className="skeleton-shimmer h-95 rounded-xl" />
           ) : mindmap ? (
             <div className="space-y-3">
               <MindmapView mindmap={mindmap} />
@@ -237,14 +237,14 @@ export function DocumentDetail({ document, onClose, onUpdated }: DocumentDetailP
               chunks.map((chunk) => (
                 <article
                   key={chunk.id}
-                  className="rounded-xl border border-white/8 bg-white/[0.03] p-3"
+                  className="rounded-xl border border-white/8 bg-white/3 p-3"
                 >
                   <div className="mb-1.5 flex items-center gap-2 text-[10px] text-ink-500">
                     <span className="rounded bg-white/5 px-1.5 py-0.5">#{chunk.chunkIndex + 1}</span>
                     {chunk.pageNumber && <span>第 {chunk.pageNumber} 页</span>}
                     {chunk.tokenCount && <span>≈ {chunk.tokenCount} tokens</span>}
                   </div>
-                  <p className="whitespace-pre-wrap break-words text-xs leading-relaxed text-ink-300">
+                  <p className="whitespace-pre-wrap wrap-break-word text-xs leading-relaxed text-ink-300">
                     {chunk.content}
                   </p>
                 </article>

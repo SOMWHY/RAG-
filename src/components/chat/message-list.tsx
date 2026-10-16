@@ -36,17 +36,17 @@ function MessageSkeleton() {
           className={clsx("flex w-full gap-3", row.role === "user" ? "justify-end" : "justify-start")}
         >
           {row.role === "assistant" && (
-            <div className="skeleton-shimmer mt-1 size-8 shrink-0 rounded-lg bg-white/[0.04]" />
+            <div className="skeleton-shimmer mt-1 size-8 shrink-0 rounded-lg bg-white/4" />
           )}
           <div
             className={clsx(
-              "skeleton-shimmer rounded-2xl bg-white/[0.04]",
+              "skeleton-shimmer rounded-2xl bg-white/4",
               row.height,
               row.width,
             )}
           />
           {row.role === "user" && (
-            <div className="skeleton-shimmer mt-1 size-8 shrink-0 rounded-lg bg-white/[0.04]" />
+            <div className="skeleton-shimmer mt-1 size-8 shrink-0 rounded-lg bg-white/4" />
           )}
         </div>
       ))}

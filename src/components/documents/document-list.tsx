@@ -118,7 +118,7 @@ export function DocumentList({
                   "w-full rounded-xl border p-3 pr-11 text-left transition duration-150",
                   selectedId === doc.id
                     ? "border-brand-400/70 bg-brand-500/15 shadow-[0_0_20px_-8px_var(--color-brand-500)]"
-                    : "border-white/10 bg-white/3 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.07]",
+                    : "border-white/10 bg-white/3 hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/7",
                 )}
               >
                 <div className="flex items-start gap-2.5">

@@ -155,7 +155,7 @@ export function MindmapView({ mindmap }: MindmapViewProps) {
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerLeave={handlePointerUp}
-        className="scrollbar-slim h-[380px] cursor-grab overflow-auto rounded-xl border border-white/10 bg-ink-950/50 active:cursor-grabbing"
+        className="scrollbar-slim h-95 cursor-grab overflow-auto rounded-xl border border-white/10 bg-ink-950/50 active:cursor-grabbing"
       >
         <svg width={width} height={height} className="block">
           <g transform={`translate(${offset.x} ${offset.y}) scale(${scale})`}>

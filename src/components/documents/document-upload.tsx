@@ -70,8 +70,8 @@ export function DocumentUpload({ onUploaded }: DocumentUploadProps) {
         className={clsx(
           "flex flex-col items-center justify-center gap-1.5 rounded-xl border border-dashed px-3 py-5 text-center transition duration-150",
           isUploading
-            ? "cursor-wait border-white/10 bg-white/[0.02]"
-            : "cursor-pointer border-white/15 bg-white/[0.03] hover:border-brand-400/60 hover:bg-brand-500/10",
+            ? "cursor-wait border-white/10 bg-white/2"
+            : "cursor-pointer border-white/15 bg-white/3 hover:border-brand-400/60 hover:bg-brand-500/10",
           isDragging && "border-brand-400 bg-brand-500/15 shadow-[0_0_24px_-6px_var(--color-brand-500)]",
         )}
       >

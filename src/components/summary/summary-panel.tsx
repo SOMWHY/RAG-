@@ -40,7 +40,7 @@ export function SummaryPanel({
 
   if (!summary) {
     return (
-      <div className="rounded-xl border border-dashed border-white/12 bg-white/[0.02] p-5 text-center">
+      <div className="rounded-xl border border-dashed border-white/12 bg-white/2 p-5 text-center">
         <Sparkles className="mx-auto mb-2 size-6 text-brand-400" />
         <p className="text-sm text-ink-300">尚未生成结构化摘要</p>
         <p className="mt-1 text-xs text-ink-500">将基于文档片段提炼核心观点、关键数据与结论</p>
@@ -79,7 +79,7 @@ export function SummaryPanel({
             {summary.keyPoints.map((item, index) => (
               <li
                 key={index}
-                className="flex gap-2 rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-xs leading-relaxed text-ink-200"
+                className="flex gap-2 rounded-lg border border-white/8 bg-white/3 px-3 py-2 text-xs leading-relaxed text-ink-200"
               >
                 {item.sourceRef && (
                   <span className="mt-px shrink-0 rounded bg-brand-500/20 px-1 text-[10px] font-semibold text-brand-300">
@@ -102,7 +102,7 @@ export function SummaryPanel({
             {summary.keyData.map((item, index) => (
               <div
                 key={index}
-                className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2"
+                className="rounded-lg border border-white/8 bg-white/3 px-3 py-2"
               >
                 <p className="truncate text-[10px] text-ink-500">{item.label}</p>
                 <p className="mt-0.5 truncate text-xs font-medium text-accent-cyan">{item.value}</p>
@@ -121,7 +121,7 @@ export function SummaryPanel({
             {summary.conclusions.map((item, index) => (
               <li
                 key={index}
-                className="rounded-lg border border-white/8 bg-white/[0.03] px-3 py-2 text-xs leading-relaxed text-ink-200"
+                className="rounded-lg border border-white/8 bg-white/3 px-3 py-2 text-xs leading-relaxed text-ink-200"
               >
                 {item}
               </li>
