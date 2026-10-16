@@ -26,6 +26,7 @@ type Tab = "summary" | "mindmap" | "chunks";
 
 export function DocumentDetail({ document, onClose, onUpdated }: DocumentDetailProps) {
   const [chunks, setChunks] = useState<ChunkRow[]>([]);
+  const [chunksLoading, setChunksLoading] = useState(true);
   const [mindmap, setMindmap] = useState<Mindmap | null>(null);
   const [mindmapLoading, setMindmapLoading] = useState(true);
   const [mindmapGenerating, setMindmapGenerating] = useState(false);
@@ -33,6 +34,7 @@ export function DocumentDetail({ document, onClose, onUpdated }: DocumentDetailP
   const [error, setError] = useState<string | null>(null);
 
   const loadChunks = useCallback(async () => {
+    setChunksLoading(true);
     try {
       const response = await fetch(`/api/documents/${document.id}`, { cache: "no-store" });
       if (!response.ok) throw new Error("读取文档详情失败");
@@ -40,6 +42,8 @@ export function DocumentDetail({ document, onClose, onUpdated }: DocumentDetailP
       setChunks(data.chunks);
     } catch (cause) {
       console.error("load chunks failed", cause);
+    } finally {
+      setChunksLoading(false);
     }
   }, [document.id]);
 
@@ -84,7 +88,7 @@ export function DocumentDetail({ document, onClose, onUpdated }: DocumentDetailP
   const tabs: Array<{ key: Tab; label: string }> = [
     { key: "summary", label: "结构化摘要" },
     { key: "mindmap", label: "思维导图" },
-    { key: "chunks", label: `原文片段 (${chunks.length})` },
+    { key: "chunks", label: chunksLoading ? "原文片段" : `原文片段 (${chunks.length})` },
   ];
 
   return (
@@ -168,6 +172,13 @@ export function DocumentDetail({ document, onClose, onUpdated }: DocumentDetailP
               </Button>
             </div>
           )
+        ) : chunksLoading ? (
+          // 加载中不能显示「暂无片段」，否则会先误导再突然弹出内容
+          <div className="space-y-2">
+            {[0, 1, 2, 3].map((key) => (
+              <div key={key} className="skeleton-shimmer h-20 rounded-xl" />
+            ))}
+          </div>
         ) : (
           <div className="space-y-2">
             {chunks.length === 0 ? (

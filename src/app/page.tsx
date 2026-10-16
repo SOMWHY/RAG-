@@ -3,7 +3,7 @@
 import { useChat } from "@ai-sdk/react";
 import { clsx } from "clsx";
 import { BrainCircuit, Files, MessageSquare, Sparkles } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { UserMenu } from "@/components/auth/user-menu";
 import { ChatInput } from "@/components/chat/chat-input";
 import { MessageList } from "@/components/chat/message-list";
@@ -45,9 +45,18 @@ export default function HomePage() {
   const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
   /** 本次提问限定的文档；为空表示检索全部文档 */
   const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
+  /**
+   * 切换 / 初次加载会话中：聊天区整块换成骨架气泡。
+   * 初始为 true：首次进入必然要接入一个会话，先显示骨架可避免闪一下「欢迎使用」空态。
+   */
+  const [isLoadingConversation, setIsLoadingConversation] = useState(true);
+  /** 新建会话请求中：按钮进入加载态，防连点创建多个空会话 */
+  const [isCreatingConversation, setIsCreatingConversation] = useState(false);
 
   const conversationIdRef = useRef<string | null>(null);
   conversationIdRef.current = conversationId;
+  /** 会话加载请求序号：连点多个会话时，只认最后一次请求的结果 */
+  const loadSeqRef = useRef(0);
 
   const { messages, sendMessage, setMessages, status, stop, error } = useChat<ChatUIMessage>({
     // 首轮问答结束后把用户提问与助手回答一并落库，保证顺序且不影响首字延迟
@@ -74,35 +83,68 @@ export default function HomePage() {
       .catch(() => setModelInfo(null));
   }, []);
 
+  /**
+   * 打开会话。清空与置加载态必须在发起请求**之前**同步完成：
+   * 否则侧栏高亮已经跳到新会话，聊天区却还停留着上一个会话的消息。
+   */
+  const openConversation = useCallback(
+    async (id: string) => {
+      const seq = ++loadSeqRef.current;
+      setConversationId(id);
+      setSelectedId(null);
+      setMessages([]);
+      setIsLoadingConversation(true);
+
+      const history = await loadMessages(id);
+      // 只认最后一次请求的结果，避免慢的旧请求后发先至覆盖新会话
+      if (seq !== loadSeqRef.current) return;
+
+      setMessages(history);
+      setIsLoadingConversation(false);
+    },
+    [loadMessages, setMessages],
+  );
+
+  const selectConversation = (id: string) => {
+    void openConversation(id);
+  };
+
+  const startNewConversation = async () => {
+    // 让可能在途的会话加载失效，避免它回来后盖掉这个空会话
+    loadSeqRef.current += 1;
+    setIsCreatingConversation(true);
+    try {
+      setConversationId(await createConversationRequest());
+      setSelectedId(null);
+      setMessages([]);
+      setIsLoadingConversation(false);
+    } catch (cause) {
+      console.error("create conversation failed", cause);
+    } finally {
+      setIsCreatingConversation(false);
+    }
+  };
+
   // 首次进入时自动接入最近会话，没有则新建
   useEffect(() => {
     if (convLoading || conversationId) return;
     const bootstrap = async () => {
       if (conversations.length > 0) {
-        setConversationId(conversations[0].id);
+        // 只设会话 id 而不拉历史的话，刷新后聊天区是空的
+        await openConversation(conversations[0].id);
       } else {
         try {
           setConversationId(await createConversationRequest());
+          setIsLoadingConversation(false);
         } catch (cause) {
+          // 创建失败也要退出加载态，否则骨架屏会一直转下去
+          setIsLoadingConversation(false);
           console.error("bootstrap conversation failed", cause);
         }
       }
     };
     void bootstrap();
-  }, [convLoading, conversations, conversationId, createConversationRequest]);
-
-  const selectConversation = async (id: string) => {
-    setConversationId(id);
-    setSelectedId(null);
-    setMessages(await loadMessages(id));
-  };
-
-  const startNewConversation = async () => {
-    const id = await createConversationRequest();
-    setConversationId(id);
-    setSelectedId(null);
-    setMessages([]);
-  };
+  }, [convLoading, conversations, conversationId, createConversationRequest, openConversation]);
 
   const deleteConversation = (id: string) => {
     void removeConversation(id);
@@ -177,6 +219,8 @@ export default function HomePage() {
           <ConversationList
             conversations={conversations}
             isLoading={convLoading}
+            isCreating={isCreatingConversation}
+            loadingId={isLoadingConversation ? conversationId : null}
             activeId={conversationId}
             onSelect={(id) => {
               void selectConversation(id);
@@ -199,6 +243,7 @@ export default function HomePage() {
           <MessageList
             messages={messages}
             isLoading={isStreaming}
+            isLoadingConversation={isLoadingConversation}
             suggestions={SUGGESTIONS}
             onPickSuggestion={submit}
             hasDocuments={hasDocuments}

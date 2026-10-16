@@ -1,5 +1,6 @@
 "use client";
 
+import { clsx } from "clsx";
 import { Loader2, Sparkles } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { MessageItem } from "./message-item";
@@ -7,15 +8,56 @@ import type { ChatUIMessage } from "@/lib/chat-message";
 
 interface MessageListProps {
   messages: ChatUIMessage[];
+  /** 流式生成中（已有语义：底部「正在检索文档…」提示） */
   isLoading: boolean;
+  /** 切换 / 初次加载会话中：整块聊天区替换为骨架气泡 */
+  isLoadingConversation?: boolean;
   suggestions: string[];
   onPickSuggestion: (value: string) => void;
   hasDocuments: boolean;
 }
 
+/** 骨架气泡：尺寸对齐真实气泡，避免加载完成时尺寸突变 */
+function MessageSkeleton() {
+  const rows = [
+    { role: "user", height: "h-11", width: "w-[45%]" },
+    { role: "assistant", height: "h-24", width: "w-[70%]" },
+    { role: "user", height: "h-11", width: "w-[38%]" },
+    { role: "assistant", height: "h-20", width: "w-[62%]" },
+    { role: "user", height: "h-11", width: "w-[50%]" },
+    { role: "assistant", height: "h-28", width: "w-[75%]" },
+  ] as const;
+
+  return (
+    <div className="space-y-5">
+      {rows.map((row, index) => (
+        <div
+          key={index}
+          className={clsx("flex w-full gap-3", row.role === "user" ? "justify-end" : "justify-start")}
+        >
+          {row.role === "assistant" && (
+            <div className="skeleton-shimmer mt-1 size-8 shrink-0 rounded-lg bg-white/[0.04]" />
+          )}
+          <div
+            className={clsx(
+              "skeleton-shimmer rounded-2xl bg-white/[0.04]",
+              row.height,
+              row.width,
+            )}
+          />
+          {row.role === "user" && (
+            <div className="skeleton-shimmer mt-1 size-8 shrink-0 rounded-lg bg-white/[0.04]" />
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function MessageList({
   messages,
   isLoading,
+  isLoadingConversation = false,
   suggestions,
   onPickSuggestion,
   hasDocuments,
@@ -24,7 +66,16 @@ export function MessageList({
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [messages, isLoading]);
+  }, [messages, isLoading, isLoadingConversation]);
+
+  // 加载会话时不能走空态，否则会先闪一下「欢迎使用」再切到消息
+  if (isLoadingConversation) {
+    return (
+      <div className="scrollbar-slim flex-1 overflow-y-auto p-4 sm:p-6">
+        <MessageSkeleton />
+      </div>
+    );
+  }
 
   if (messages.length === 0) {
     return (

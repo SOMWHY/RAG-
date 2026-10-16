@@ -7,6 +7,10 @@ import type { ConversationItem } from "@/lib/use-conversations";
 interface ConversationListProps {
   conversations: ConversationItem[];
   isLoading: boolean;
+  /** 新建会话请求中 */
+  isCreating: boolean;
+  /** 正在拉取消息的会话 id */
+  loadingId: string | null;
   activeId: string | null;
   onSelect: (id: string) => void;
   onCreate: () => void;
@@ -25,6 +29,8 @@ function formatTime(value: string): string {
 export function ConversationList({
   conversations,
   isLoading,
+  isCreating,
+  loadingId,
   activeId,
   onSelect,
   onCreate,
@@ -37,10 +43,16 @@ export function ConversationList({
         <button
           type="button"
           onClick={onCreate}
+          disabled={isCreating}
           title="新建会话"
-          className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-ink-400 transition hover:bg-white/8 hover:text-ink-100"
+          className="inline-flex items-center gap-1 rounded-md px-1.5 py-1 text-[11px] text-ink-400 transition hover:bg-white/8 hover:text-ink-100 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <MessageSquarePlus className="size-3.5" /> 新建
+          {isCreating ? (
+            <Loader2 className="size-3.5 animate-spin" />
+          ) : (
+            <MessageSquarePlus className="size-3.5" />
+          )}{" "}
+          新建
         </button>
       </div>
 
@@ -67,12 +79,16 @@ export function ConversationList({
                 onClick={() => onSelect(conversation.id)}
                 className="flex min-w-0 flex-1 items-center gap-2 text-left"
               >
-                <MessagesSquare
-                  className={clsx(
-                    "size-3.5 shrink-0",
-                    activeId === conversation.id ? "text-brand-300" : "text-ink-500",
-                  )}
-                />
+                {loadingId === conversation.id ? (
+                  <Loader2 className="size-3.5 shrink-0 animate-spin text-brand-300" />
+                ) : (
+                  <MessagesSquare
+                    className={clsx(
+                      "size-3.5 shrink-0",
+                      activeId === conversation.id ? "text-brand-300" : "text-ink-500",
+                    )}
+                  />
+                )}
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-xs text-ink-200">{conversation.title}</span>
                   <span className="block text-[10px] text-ink-500">
