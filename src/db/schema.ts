@@ -62,11 +62,13 @@ export const chunks = pgTable(
     embedding: vector("embedding", { dimensions: EMBEDDING_DIMENSIONS }),
     createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
   },
-  // 未建向量索引：pgvector 的 HNSW / IVFFlat 上限为 2000 维，
-  // 而当前 embedding 模型输出 2048 维。检索走精确扫描。
-  // 若换成 ≤2000 维的模型，可加回：
-  //   index("chunks_embedding_idx").using("hnsw", table.embedding.op("vector_cosine_ops"))
-  (table) => [index("chunks_document_id_idx").on(table.documentId)],
+  // 建 HNSW 索引：当前 embedding 模型输出 1536 维，在 pgvector 的 2000 维上限内。
+  // 若换成更高维模型（如 text-embedding-3-large 的 3072 维），必须移除下面的
+  // chunks_embedding_idx，否则迁移失败，检索退化为精确扫描。
+  (table) => [
+    index("chunks_document_id_idx").on(table.documentId),
+    index("chunks_embedding_idx").using("hnsw", table.embedding.op("vector_cosine_ops")),
+  ],
 );
 
 export const documentStats = pgTable("document_stats", {

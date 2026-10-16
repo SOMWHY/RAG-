@@ -29,6 +29,13 @@
       "when": 1792155442169,
       "tag": "0003_add_users",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792163125900,
+      "tag": "0004_embedding_1536",
+      "breakpoints": true
     }
   ]
 }

@@ -84,9 +84,9 @@ npm run dev
 | `DATABASE_URL` | 运行时连接串（Neon **pooled**） |
 | `DATABASE_URL_UNPOOLED` | 迁移用直连串，缺失时 `drizzle.config.ts` 会直接报错 |
 | `AI_API_KEY` | OpenAI 或兼容网关的 API Key |
-| `AI_BASE_URL` | 可选，默认走代码内置网关；建议显式指定 |
-| `AI_CHAT_MODEL` | 默认 `gpt-5.5`（须在当前网关可用） |
-| `AI_EMBEDDING_MODEL` | 默认 `nemotron-3-embed-1b`（2048 维） |
+| `AI_BASE_URL` | OpenAI 兼容网关地址，如 `https://api.chatanywhere.tech/v1` |
+| `AI_CHAT_MODEL` | 默认 `gpt-4o-mini` |
+| `AI_EMBEDDING_MODEL` | 默认 `text-embedding-3-small`（1536 维） |
 | `AUTH_SECRET` | 会话 JWT 签名密钥，必填。`openssl rand -base64 32` 生成 |
 | `AUTH_GITHUB_ID` | GitHub OAuth App 的 Client ID |
 | `AUTH_GITHUB_SECRET` | GitHub OAuth App 的 Client Secret |
@@ -110,29 +110,29 @@ npm run dev
 
 ## 向量索引
 
-当前 embedding 模型输出 **2048 维**，而 pgvector（实测 0.8.6）的 HNSW / IVFFlat 索引上限为 **2000 维**，因此 `chunks.embedding` **未建向量索引**，检索走精确扫描。对小规模数据集（数千片段内）性能足够，也避免了索引与维度不匹配的迁移陷阱。
+当前 embedding 模型 `text-embedding-3-small` 输出 **1536 维**，在 pgvector 的 HNSW / IVFFlat **索引**上限（2000 维）内，因此 `chunks.embedding` 建了 HNSW 索引（`chunks_embedding_idx`，`vector_cosine_ops`）。
 
-若换成 ≤2000 维的模型（如 OpenAI `text-embedding-3-small` 的 1536 维），可恢复索引：
+> 2000 维限制的是**索引**而非列：pgvector 的列最高支持 16000 维。换成 3072 维的 `text-embedding-3-large` 也能存，但索引建不出来，检索会退化为精确扫描。
 
-1. 修改 `src/lib/ai-config.ts` 的 `EMBEDDING_DIMENSIONS` 与 `DEFAULT_EMBEDDING_MODEL`
-2. 在 `src/db/schema.ts` 的 `chunks` 索引数组里加回：
-   ```ts
-   index("chunks_embedding_idx").using("hnsw", table.embedding.op("vector_cosine_ops"))
-   ```
-3. `npm run db:generate && npm run db:migrate`（空表才能安全改维度，已有数据需先清空 chunks）
+**换 embedding 模型的代价（与维度无关）**：不同模型产出的向量不在同一个向量空间里，已入库的向量全部失效，必须重新向量化。`chunks.content` 里原文还在，**可以原地重算，不需要重新上传文件**。步骤：
+
+1. 改 `src/lib/ai-config.ts` 的 `EMBEDDING_DIMENSIONS` 与 `DEFAULT_EMBEDDING_MODEL`；若新维度 > 2000，移除 `src/db/schema.ts` 里的 `chunks_embedding_idx`
+2. `update chunks set embedding = null` —— 存在旧维度的向量时，改列类型会直接失败
+3. `npm run db:generate && npm run db:migrate`
+4. 分批读 `chunks.content` → 调 `/v1/embeddings` → 回写 `embedding`（实测 53 个片段约 47 秒）
 
 ## 数据模型
 
 - **users**：`githubId`(unique) / `login` / `name` / `avatarUrl`
 - **documents**：`userId` / `name` / `mimeType` / `size` / `status`(processing\|ready\|failed) / `pageCount` / `summary`(jsonb) / `mindmap`(jsonb)
-- **chunks**：`documentId` / `content` / `chunkIndex` / `pageNumber` / `tokenCount` / `embedding`(vector 2048，无向量索引，见「向量索引」)
+- **chunks**：`documentId` / `content` / `chunkIndex` / `pageNumber` / `tokenCount` / `embedding`(vector 1536，带 HNSW 索引，见「向量索引」)
 - **document_stats**：`documentId`(unique) / `chunkCount` / `avgDistance`
 - **conversations**：`userId` / `title` / `createdAt` / `updatedAt`
 - **conversation_messages**：`conversationId` / `role` / `parts`(jsonb) / `metadata`(jsonb)
 
 `chunks` 与 `conversation_messages` **刻意不加 userId**，分别通过 join `documents`、join `conversations` 过滤，避免冗余字段与同步问题。
 
-迁移文件位于 `drizzle/`：`0000` 初始结构、`0001` 会话与摘要字段、`0002` 向量维度改为 2048 并移除超限索引、`0003` 新增 users 与 userId 列。**不要修改已应用的迁移文件。**
+迁移文件位于 `drizzle/`：`0000` 初始结构、`0001` 会话与摘要字段、`0002` 向量维度改为 2048 并移除超限索引、`0003` 新增 users 与 userId 列、`0004` 向量维度改为 1536 并恢复 HNSW 索引。**不要修改已应用的迁移文件。**
 
 ## API
 
@@ -315,6 +315,20 @@ AI SDK v7 的 `generateObject` **固定**使用 `json_schema`，且 `mode` 参�
 | `oauth` | GitHub 侧失败：回调地址未登记、Client ID/Secret 错，或网络不通 |
 
 GitHub 报 `redirect_uri` 不匹配 = OAuth App 里没登记当前回调地址。预览环境域名不固定，需要给预览环境设 `AUTH_REDIRECT_BASE_URL` 指向生产域名。
+
+### 模型在 `/v1/models` 里能列出，调用却返回 503「模型无返回结果」
+
+免费中转常见：`/v1/models` 是静态列表，实际额度只覆盖其中一部分。实测（ChatAnywhere 免费档，2026-10）：
+
+| 模型 | 结果 |
+| --- | --- |
+| `gpt-4o-mini` | ✅ 约 1.5s |
+| `gpt-4.1-mini` | ✅ 约 2.4s |
+| `deepseek-chat` | ✅ 约 5s |
+| `gpt-3.5-turbo` | ⚠️ 可用但约 60s，实际不可用 |
+| `gpt-5.5` / `gpt-5.4-mini` | ❌ 503 |
+
+换模型只改 `AI_CHAT_MODEL`，无需改代码。注意 `gpt-5-mini`、`deepseek-v3.2` 这类带推理过程的模型，在 `max_tokens` 偏小时可能返回空内容。
 
 ### 应用报 `read ECONNRESET` / 连接超时
 
