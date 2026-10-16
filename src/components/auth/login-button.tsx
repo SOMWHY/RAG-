@@ -23,7 +23,7 @@ export function LoginButton() {
         setPending(true);
         window.location.href = "/api/auth/github";
       }}
-      className="group flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-xl gradient-brand px-4 py-3 text-sm font-medium text-white shadow-[0_10px_30px_-10px_var(--color-brand-500)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_44px_-12px_var(--color-brand-500)] disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
+      className="group flex w-full cursor-pointer items-center justify-center gap-2.5 rounded-xl gradient-brand px-4 py-3 text-sm font-medium text-ink-950 shadow-[0_10px_30px_-10px_var(--color-brand-500)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_44px_-12px_var(--color-brand-500)] disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
     >
       {pending ? (
         <Loader2 className="size-4 animate-spin" />

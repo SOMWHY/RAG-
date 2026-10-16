@@ -136,7 +136,7 @@ export function ChatInput({
   return (
     <form
       onSubmit={handleSubmit}
-      className="border-t border-white/10 bg-ink-950/60 px-3 py-3 backdrop-blur-xl sm:px-5"
+      className="border-t border-white/10 bg-white/[0.03] px-3 py-3 backdrop-blur-2xl sm:px-5"
     >
       {selectedDocs.length > 0 && (
         <div className="mb-2 flex flex-wrap items-center gap-1.5">

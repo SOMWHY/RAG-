@@ -16,7 +16,7 @@ function Avatar({ user }: { user: AuthUser }) {
 
   if (!user.avatarUrl) {
     return (
-      <span className="flex size-6 items-center justify-center rounded-full gradient-brand text-[11px] font-medium text-white">
+      <span className="flex size-6 items-center justify-center rounded-full gradient-brand text-[11px] font-medium text-ink-950">
         {label.slice(0, 1).toUpperCase()}
       </span>
     );
@@ -96,7 +96,7 @@ export function UserMenu() {
       {open && user && (
         <div
           role="menu"
-          className="absolute right-0 top-full z-50 mt-2 w-56 animate-rise-in rounded-xl border border-white/10 bg-ink-900/95 p-1.5 shadow-[0_18px_40px_-16px_rgba(2,6,23,0.9)] backdrop-blur-xl"
+          className="absolute right-0 top-full z-50 mt-2 w-56 animate-rise-in rounded-xl border border-white/10 bg-ink-900/95 p-1.5 shadow-[0_18px_40px_-16px_rgba(0,0,0,0.9)] backdrop-blur-2xl"
         >
           <div className="px-2.5 py-2">
             <p className="truncate text-xs font-medium text-ink-100">{user.name ?? user.login}</p>

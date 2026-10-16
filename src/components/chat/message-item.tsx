@@ -24,7 +24,7 @@ export function MessageItem({ message }: MessageItemProps) {
     >
       {!isUser && (
         <div className="mt-1 flex size-8 shrink-0 items-center justify-center rounded-lg gradient-brand shadow-[0_0_18px_-4px_var(--color-brand-500)]">
-          <Sparkles className="size-4 text-white" />
+          <Sparkles className="size-4 text-ink-950" />
         </div>
       )}
 
@@ -33,7 +33,7 @@ export function MessageItem({ message }: MessageItemProps) {
           className={clsx(
             "rounded-2xl px-4 py-3 text-[15px] leading-relaxed",
             isUser
-              ? "gradient-brand max-w-[80%] text-white shadow-[0_10px_30px_-12px_var(--color-brand-600)]"
+              ? "max-w-[80%] border border-white/15 bg-white/10 text-ink-100 backdrop-blur-xl"
               : "glass-card max-w-[86%] text-ink-200",
           )}
         >

@@ -5,29 +5,30 @@
   --font-sans: "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei",
     ui-sans-serif, system-ui, sans-serif;
 
-  /* 背景层级：深海军蓝 */
-  --color-ink-950: #0b1020;
-  --color-ink-900: #131a2e;
-  --color-ink-850: #182139;
-  --color-ink-800: #1e293b;
-  --color-ink-700: #334155;
+  /* 背景层级：中性灰阶（GitHub / Vercel 风格，不带蓝调） */
+  --color-ink-950: #0a0a0a;
+  --color-ink-900: #131313;
+  --color-ink-850: #1a1a1a;
+  --color-ink-800: #212121;
+  --color-ink-700: #2e2e2e;
 
   /* 文本层级 */
-  --color-ink-100: #f1f5f9;
-  --color-ink-200: #e2e8f0;
-  --color-ink-300: #cbd5e1;
-  --color-ink-400: #94a3b8;
-  --color-ink-500: #64748b;
+  --color-ink-100: #fafafa;
+  --color-ink-200: #e5e5e5;
+  --color-ink-300: #d4d4d4;
+  --color-ink-400: #a3a3a3;
+  --color-ink-500: #737373;
 
-  /* 主色：靛紫 */
-  --color-brand-300: #a5b4fc;
-  --color-brand-400: #818cf8;
-  --color-brand-500: #6366f1;
-  --color-brand-600: #4f46e5;
-  --color-brand-700: #4338ca;
+  /* 强调色：白 → 浅灰。用于主按钮、logo、头像、选中态 */
+  --color-brand-200: #fafafa;
+  --color-brand-300: #f5f5f5;
+  --color-brand-400: #e5e5e5;
+  --color-brand-500: #ffffff;
+  --color-brand-600: #d4d4d4;
+  --color-brand-700: #a3a3a3;
 
-  /* 功能色 */
-  --color-accent-cyan: #22d3ee;
+  /* 功能色：仅保留状态与报错的语义色，日常界面不出现彩色 */
+  --color-accent-cyan: #d4d4d4; /* 原青色点缀，已统一为中性浅灰 */
   --color-accent-green: #22c55e;
   --color-accent-amber: #f59e0b;
   --color-accent-red: #ef4444;
@@ -40,15 +41,16 @@
 
   body {
     @apply bg-ink-950 text-ink-100 font-sans;
+    /* 中性光晕：给玻璃面板一点可以透出来的层次，同时保持黑白 */
     background-image:
-      radial-gradient(60rem 40rem at 12% -10%, rgba(99, 102, 241, 0.18), transparent 60%),
-      radial-gradient(50rem 34rem at 100% 0%, rgba(34, 211, 238, 0.12), transparent 55%),
-      radial-gradient(46rem 30rem at 50% 110%, rgba(129, 140, 248, 0.1), transparent 60%);
+      radial-gradient(60rem 40rem at 12% -10%, rgba(255, 255, 255, 0.07), transparent 60%),
+      radial-gradient(50rem 34rem at 100% 0%, rgba(255, 255, 255, 0.05), transparent 55%),
+      radial-gradient(46rem 30rem at 50% 110%, rgba(255, 255, 255, 0.04), transparent 60%);
     background-attachment: fixed;
   }
 
   ::selection {
-    background: rgba(99, 102, 241, 0.36);
+    background: rgba(255, 255, 255, 0.22);
     color: #fff;
   }
 
@@ -59,19 +61,20 @@
 }
 
 @layer components {
-  /* 玻璃拟态面板 */
+  /* 磨砂玻璃面板：半透明白 + 强模糊，让背后的光晕透上来 */
   .glass-panel {
-    @apply border border-white/10 bg-ink-900/60 backdrop-blur-xl;
+    @apply border border-white/10 bg-white/[0.035] backdrop-blur-2xl;
     box-shadow:
-      0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
-      0 18px 50px -20px rgba(2, 6, 23, 0.85);
+      0 1px 0 0 rgba(255, 255, 255, 0.09) inset,
+      0 18px 50px -20px rgba(0, 0, 0, 0.9);
   }
 
   .glass-card {
-    @apply rounded-xl border border-white/10 bg-white/5 backdrop-blur-md;
+    @apply rounded-xl border border-white/10 bg-white/[0.05] backdrop-blur-xl;
+    box-shadow: 0 1px 0 0 rgba(255, 255, 255, 0.07) inset;
   }
 
-  /* 靛紫渐变主按钮 */
+  /* 白 → 浅灰渐变：主按钮、logo、头像。其上文字必须用深色（ink-950） */
   .gradient-brand {
     background-image: linear-gradient(135deg, var(--color-brand-500), var(--color-brand-700));
   }
@@ -79,18 +82,18 @@
 
 @utility scrollbar-slim {
   scrollbar-width: thin;
-  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+  scrollbar-color: rgba(163, 163, 163, 0.35) transparent;
 
   &::-webkit-scrollbar {
     width: 8px;
     height: 8px;
   }
   &::-webkit-scrollbar-thumb {
-    background: rgba(148, 163, 184, 0.32);
+    background: rgba(163, 163, 163, 0.32);
     border-radius: 9999px;
   }
   &::-webkit-scrollbar-thumb:hover {
-    background: rgba(148, 163, 184, 0.55);
+    background: rgba(163, 163, 163, 0.55);
   }
   &::-webkit-scrollbar-track {
     background: transparent;
@@ -158,15 +161,15 @@
   --tw-prose-bold: var(--color-ink-100);
   --tw-prose-counters: var(--color-ink-400);
   --tw-prose-bullets: var(--color-brand-400);
-  --tw-prose-hr: rgba(148, 163, 184, 0.25);
+  --tw-prose-hr: rgba(255, 255, 255, 0.18);
   --tw-prose-quotes: var(--color-ink-200);
-  --tw-prose-quote-borders: var(--color-brand-500);
+  --tw-prose-quote-borders: rgba(255, 255, 255, 0.22);
   --tw-prose-captions: var(--color-ink-400);
   --tw-prose-code: var(--color-accent-cyan);
   --tw-prose-pre-code: var(--color-ink-200);
-  --tw-prose-pre-bg: rgba(2, 6, 23, 0.72);
-  --tw-prose-th-borders: rgba(148, 163, 184, 0.3);
-  --tw-prose-td-borders: rgba(148, 163, 184, 0.18);
+  --tw-prose-pre-bg: rgba(0, 0, 0, 0.55);
+  --tw-prose-th-borders: rgba(255, 255, 255, 0.22);
+  --tw-prose-td-borders: rgba(255, 255, 255, 0.12);
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -31,7 +31,7 @@ export function MessageList({
       <div className="scrollbar-slim flex flex-1 items-center justify-center overflow-y-auto p-6">
         <div className="animate-rise-in w-full max-w-lg text-center">
           <div className="mx-auto mb-5 flex size-14 items-center justify-center rounded-2xl gradient-brand shadow-[0_0_40px_-8px_var(--color-brand-500)]">
-            <Sparkles className="size-7 text-white" />
+            <Sparkles className="size-7 text-ink-950" />
           </div>
           <h2 className="text-xl font-semibold text-ink-100">欢迎使用 RAG 知识助手</h2>
           <p className="mt-2 text-sm leading-relaxed text-ink-400">

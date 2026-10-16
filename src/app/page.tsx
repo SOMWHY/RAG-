@@ -119,10 +119,10 @@ export default function HomePage() {
 
   return (
     <div className="flex h-screen flex-col overflow-hidden">
-      <header className="z-20 flex h-14 shrink-0 items-center justify-between border-b border-white/10 bg-ink-950/80 px-4 backdrop-blur-xl">
+      <header className="z-20 flex h-14 shrink-0 items-center justify-between border-b border-white/10 bg-ink-950/70 px-4 backdrop-blur-2xl">
         <div className="flex items-center gap-2.5">
           <div className="flex size-8 items-center justify-center rounded-lg gradient-brand shadow-[0_0_20px_-6px_var(--color-brand-500)]">
-            <Sparkles className="size-4 text-white" />
+            <Sparkles className="size-4 text-ink-950" />
           </div>
           <div className="leading-tight">
             <h1 className="text-sm font-semibold text-ink-100">RAG 知识助手</h1>
@@ -149,7 +149,7 @@ export default function HomePage() {
       <div className="relative flex min-h-0 flex-1">
         <aside
           className={clsx(
-            "w-full shrink-0 flex-col gap-3 border-r border-white/10 bg-ink-900/40 p-3 lg:flex lg:w-80",
+            "w-full shrink-0 flex-col gap-3 border-r border-white/10 bg-white/[0.02] p-3 backdrop-blur-2xl lg:flex lg:w-80",
             mobileView === "docs" ? "flex" : "hidden",
           )}
         >

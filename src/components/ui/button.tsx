@@ -8,7 +8,7 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const VARIANTS: Record<NonNullable<ButtonProps["variant"]>, string> = {
   default:
-    "gradient-brand text-white shadow-[0_10px_30px_-12px_var(--color-brand-600)] hover:brightness-110 active:brightness-95",
+    "gradient-brand text-ink-950 shadow-[0_10px_30px_-12px_var(--color-brand-600)] hover:brightness-110 active:brightness-95",
   secondary: "bg-ink-800 text-ink-100 hover:bg-ink-700",
   outline:
     "border border-white/15 bg-white/5 text-ink-200 hover:border-brand-400/60 hover:bg-brand-500/15 hover:text-ink-100",

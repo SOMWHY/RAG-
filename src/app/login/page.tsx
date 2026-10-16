@@ -27,7 +27,7 @@ export default async function LoginPage({
         <div className="glass-panel rounded-2xl p-7">
           <div className="flex flex-col items-center text-center">
             <div className="flex size-12 items-center justify-center rounded-2xl gradient-brand shadow-[0_0_28px_-8px_var(--color-brand-500)]">
-              <Sparkles className="size-5 text-white" />
+              <Sparkles className="size-5 text-ink-950" />
             </div>
             <h1 className="mt-4 text-xl font-semibold text-ink-100">RAG 知识助手</h1>
             <p className="mt-1.5 text-xs leading-relaxed text-ink-400">

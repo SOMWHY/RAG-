@@ -88,7 +88,7 @@ export function DocumentDetail({ document, onClose, onUpdated }: DocumentDetailP
   ];
 
   return (
-    <section className="animate-rise-in flex h-full w-full flex-col overflow-hidden border-l border-white/10 bg-ink-900/80 backdrop-blur-2xl lg:w-[520px]">
+    <section className="animate-rise-in flex h-full w-full flex-col overflow-hidden border-l border-white/10 bg-ink-900/70 backdrop-blur-2xl lg:w-[520px]">
       <header className="flex shrink-0 items-start justify-between gap-3 border-b border-white/10 px-4 py-3">
         <div className="min-w-0">
           <h3 className="truncate text-sm font-semibold text-ink-100">{document.name}</h3>
