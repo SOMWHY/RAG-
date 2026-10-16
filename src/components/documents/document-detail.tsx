@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { MindmapView } from "@/components/mindmap/mindmap-view";
 import { SummaryPanel } from "@/components/summary/summary-panel";
 import type { Mindmap } from "@/lib/schema/mindmap";
+import type { DocumentSummary } from "@/lib/schema/summary";
 import type { DocumentItem } from "@/lib/use-documents";
 
 type ChunkRow = {
@@ -30,6 +31,16 @@ export function DocumentDetail({ document, onClose, onUpdated }: DocumentDetailP
   const [mindmap, setMindmap] = useState<Mindmap | null>(null);
   const [mindmapLoading, setMindmapLoading] = useState(true);
   const [mindmapGenerating, setMindmapGenerating] = useState(false);
+  /**
+   * 摘要状态放在父组件，和导图、片段一致：打开面板时加载一次，
+   * 之后切 tab 直接渲染。放在 SummaryPanel 内部的话，切走会卸载，
+   * 切回来又重新请求一次。
+   */
+  const [summary, setSummary] = useState<DocumentSummary | null>(null);
+  const [summaryLoading, setSummaryLoading] = useState(true);
+  const [summaryGenerating, setSummaryGenerating] = useState(false);
+  /** 摘要单独一份错误状态，不与导图的 error 互相串 */
+  const [summaryError, setSummaryError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("summary");
   const [error, setError] = useState<string | null>(null);
 
@@ -61,10 +72,46 @@ export function DocumentDetail({ document, onClose, onUpdated }: DocumentDetailP
     }
   }, [document.id]);
 
+  const loadSummary = useCallback(async () => {
+    setSummaryLoading(true);
+    setSummaryError(null);
+    try {
+      const response = await fetch(`/api/documents/${document.id}/summary`, { cache: "no-store" });
+      if (!response.ok) throw new Error("读取摘要失败");
+      const data = (await response.json()) as { summary: DocumentSummary | null };
+      setSummary(data.summary);
+    } catch (cause) {
+      console.error("load summary failed", cause);
+      setSummaryError("读取摘要失败");
+    } finally {
+      setSummaryLoading(false);
+    }
+  }, [document.id]);
+
+  const generateSummary = async () => {
+    setSummaryGenerating(true);
+    setSummaryError(null);
+    try {
+      const response = await fetch(`/api/documents/${document.id}/summary`, { method: "POST" });
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as { error?: string };
+        throw new Error(data.error || "生成摘要失败");
+      }
+      setSummary((await response.json()) as DocumentSummary);
+      onUpdated();
+    } catch (cause) {
+      console.error("generate summary failed", cause);
+      setSummaryError(cause instanceof Error ? cause.message : "生成摘要失败");
+    } finally {
+      setSummaryGenerating(false);
+    }
+  };
+
   useEffect(() => {
     void loadChunks();
     void loadMindmap();
-  }, [loadChunks, loadMindmap]);
+    void loadSummary();
+  }, [loadChunks, loadMindmap, loadSummary]);
 
   const generateMindmap = async () => {
     setMindmapGenerating(true);
@@ -136,9 +183,12 @@ export function DocumentDetail({ document, onClose, onUpdated }: DocumentDetailP
           </p>
         ) : tab === "summary" ? (
           <SummaryPanel
-            documentId={document.id}
+            summary={summary}
             documentName={document.name}
-            onGenerated={onUpdated}
+            isLoading={summaryLoading}
+            isGenerating={summaryGenerating}
+            error={summaryError}
+            onGenerate={() => void generateSummary()}
           />
         ) : tab === "mindmap" ? (
           mindmapLoading ? (

@@ -1,61 +1,33 @@
 "use client";
 
 import { BarChart3, ListChecks, RefreshCw, Sparkles, Tag, Target } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { DocumentSummary } from "@/lib/schema/summary";
 
 interface SummaryPanelProps {
-  documentId: string;
+  summary: DocumentSummary | null;
   documentName: string;
-  onGenerated: () => void;
+  isLoading: boolean;
+  isGenerating: boolean;
+  error: string | null;
+  onGenerate: () => void;
 }
 
-export function SummaryPanel({ documentId, documentName, onGenerated }: SummaryPanelProps) {
-  const [summary, setSummary] = useState<DocumentSummary | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/documents/${documentId}/summary`, { cache: "no-store" });
-      if (!response.ok) throw new Error("读取摘要失败");
-      const data = (await response.json()) as { summary: DocumentSummary | null };
-      setSummary(data.summary);
-    } catch (cause) {
-      console.error("load summary failed", cause);
-      setError("读取摘要失败");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [documentId]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  const generate = async () => {
-    setIsGenerating(true);
-    setError(null);
-    try {
-      const response = await fetch(`/api/documents/${documentId}/summary`, { method: "POST" });
-      if (!response.ok) {
-        const data = (await response.json().catch(() => ({}))) as { error?: string };
-        throw new Error(data.error || "生成摘要失败");
-      }
-      setSummary((await response.json()) as DocumentSummary);
-      onGenerated();
-    } catch (cause) {
-      console.error("generate summary failed", cause);
-      setError(cause instanceof Error ? cause.message : "生成摘要失败");
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
+/**
+ * 纯展示组件：摘要数据与加载 / 生成状态全部由父组件持有。
+ *
+ * 早先这些状态在组件内部，而它是按 tab 条件渲染的 —— 切到别的 tab 就卸载，
+ * 切回来重新挂载又发一次请求，于是每看一次摘要都要等一次加载。
+ * 现在和「思维导图」一样由父组件在打开面板时加载一次，切 tab 直接渲染。
+ */
+export function SummaryPanel({
+  summary,
+  documentName,
+  isLoading,
+  isGenerating,
+  error,
+  onGenerate,
+}: SummaryPanelProps) {
   if (isLoading) {
     return (
       <div className="space-y-2">
@@ -73,7 +45,7 @@ export function SummaryPanel({ documentId, documentName, onGenerated }: SummaryP
         <p className="text-sm text-ink-300">尚未生成结构化摘要</p>
         <p className="mt-1 text-xs text-ink-500">将基于文档片段提炼核心观点、关键数据与结论</p>
         {error && <p className="mt-2 text-xs text-accent-red">{error}</p>}
-        <Button className="mt-4" size="sm" disabled={isGenerating} onClick={() => void generate()}>
+        <Button className="mt-4" size="sm" disabled={isGenerating} onClick={onGenerate}>
           {isGenerating ? "生成中…" : "生成摘要"}
         </Button>
       </div>
@@ -92,7 +64,7 @@ export function SummaryPanel({ documentId, documentName, onGenerated }: SummaryP
           size="sm"
           title="重新生成"
           disabled={isGenerating}
-          onClick={() => void generate()}
+          onClick={onGenerate}
         >
           <RefreshCw className={isGenerating ? "size-3.5 animate-spin" : "size-3.5"} />
         </Button>
