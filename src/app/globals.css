@@ -1,0 +1,178 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --font-sans: "Source Han Sans SC", "Noto Sans SC", "PingFang SC", "Microsoft YaHei",
+    ui-sans-serif, system-ui, sans-serif;
+
+  /* 背景层级：深海军蓝 */
+  --color-ink-950: #0b1020;
+  --color-ink-900: #131a2e;
+  --color-ink-850: #182139;
+  --color-ink-800: #1e293b;
+  --color-ink-700: #334155;
+
+  /* 文本层级 */
+  --color-ink-100: #f1f5f9;
+  --color-ink-200: #e2e8f0;
+  --color-ink-300: #cbd5e1;
+  --color-ink-400: #94a3b8;
+  --color-ink-500: #64748b;
+
+  /* 主色：靛紫 */
+  --color-brand-300: #a5b4fc;
+  --color-brand-400: #818cf8;
+  --color-brand-500: #6366f1;
+  --color-brand-600: #4f46e5;
+  --color-brand-700: #4338ca;
+
+  /* 功能色 */
+  --color-accent-cyan: #22d3ee;
+  --color-accent-green: #22c55e;
+  --color-accent-amber: #f59e0b;
+  --color-accent-red: #ef4444;
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-ink-950 text-ink-100 font-sans;
+    background-image:
+      radial-gradient(60rem 40rem at 12% -10%, rgba(99, 102, 241, 0.18), transparent 60%),
+      radial-gradient(50rem 34rem at 100% 0%, rgba(34, 211, 238, 0.12), transparent 55%),
+      radial-gradient(46rem 30rem at 50% 110%, rgba(129, 140, 248, 0.1), transparent 60%);
+    background-attachment: fixed;
+  }
+
+  ::selection {
+    background: rgba(99, 102, 241, 0.36);
+    color: #fff;
+  }
+
+  *:focus-visible {
+    outline: 2px solid var(--color-brand-400);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* 玻璃拟态面板 */
+  .glass-panel {
+    @apply border border-white/10 bg-ink-900/60 backdrop-blur-xl;
+    box-shadow:
+      0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
+      0 18px 50px -20px rgba(2, 6, 23, 0.85);
+  }
+
+  .glass-card {
+    @apply rounded-xl border border-white/10 bg-white/5 backdrop-blur-md;
+  }
+
+  /* 靛紫渐变主按钮 */
+  .gradient-brand {
+    background-image: linear-gradient(135deg, var(--color-brand-500), var(--color-brand-700));
+  }
+}
+
+@utility scrollbar-slim {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(148, 163, 184, 0.35) transparent;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.32);
+    border-radius: 9999px;
+  }
+  &::-webkit-scrollbar-thumb:hover {
+    background: rgba(148, 163, 184, 0.55);
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pulse-ring {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -160% 0;
+  }
+  to {
+    background-position: 260% 0;
+  }
+}
+
+.animate-rise-in {
+  animation: rise-in 0.2s ease-out both;
+}
+
+.animate-pulse-ring {
+  animation: pulse-ring 2.4s ease-in-out infinite;
+}
+
+.skeleton-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.12) 45%,
+    rgba(255, 255, 255, 0.04) 90%
+  );
+  background-size: 220% 100%;
+  animation: shimmer 1.6s linear infinite;
+}
+
+/* Markdown 排版：适配深色玻璃卡片 */
+.prose-rag {
+  @apply prose prose-sm max-w-none;
+  --tw-prose-body: var(--color-ink-200);
+  --tw-prose-headings: var(--color-ink-100);
+  --tw-prose-lead: var(--color-ink-300);
+  --tw-prose-links: var(--color-brand-300);
+  --tw-prose-bold: var(--color-ink-100);
+  --tw-prose-counters: var(--color-ink-400);
+  --tw-prose-bullets: var(--color-brand-400);
+  --tw-prose-hr: rgba(148, 163, 184, 0.25);
+  --tw-prose-quotes: var(--color-ink-200);
+  --tw-prose-quote-borders: var(--color-brand-500);
+  --tw-prose-captions: var(--color-ink-400);
+  --tw-prose-code: var(--color-accent-cyan);
+  --tw-prose-pre-code: var(--color-ink-200);
+  --tw-prose-pre-bg: rgba(2, 6, 23, 0.72);
+  --tw-prose-th-borders: rgba(148, 163, 184, 0.3);
+  --tw-prose-td-borders: rgba(148, 163, 184, 0.18);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise-in,
+  .animate-pulse-ring,
+  .skeleton-shimmer {
+    animation: none;
+  }
+}

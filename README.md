@@ -1,0 +1,245 @@
+# RAG 知识助手
+
+基于 RAG（检索增强生成）的文档问答与知识管理应用。上传 PDF / Markdown，系统自动分页解析、切分、向量化入库；随后可用自然语言提问，AI 基于检索片段流式作答并附来源引用，还能对单篇文档生成结构化摘要与思维导图。
+
+## 功能特性
+
+**检索与问答**
+
+- 文档上传：支持 PDF、Markdown，含拖拽上传，单文件上限 10MB
+- 分页解析：PDF 按页提取文本，来源引用可定位到具体页码
+- 智能切分：段落感知切分（1800 字符 / 240 重叠），保留页码归属
+- 向量化：批量 embedding + 分批入库，写入 pgvector（1536 维）
+- 语义检索：余弦相似度 + HNSW 索引，带相似度阈值过滤
+- 流式问答：单一流式连接返回文本，**来源引用随流下发，不产生二次请求**
+- 来源追溯：每条回答附来源卡片（文档名 + 页码 + 相似度）
+
+**知识视图**
+
+- 结构化摘要：`generateObject` + Zod schema 输出核心观点 / 关键数据 / 结论 / 标签
+- 思维导图：模型输出扁平节点，前端纯 SVG 渲染可折叠主题树（支持缩放与平移）
+- 原文片段浏览：按 chunk 列出原文与页码，与聊天引用形成闭环
+
+**会话**
+
+- 对话历史持久化：刷新后可恢复，支持多会话切换与删除
+- 响应式：桌面三栏（文档 / 聊天 / 详情），移动端底部标签切换
+
+## 技术栈
+
+| 层 | 选型 |
+| --- | --- |
+| 框架 | Next.js 16（App Router）+ React 19 + TypeScript |
+| 样式 | Tailwind CSS v4 + `@tailwindcss/typography` |
+| AI | `ai@7` + `@ai-sdk/react` + `@ai-sdk/openai` |
+| 数据库 | Neon Postgres + pgvector + Drizzle ORM |
+| 校验 | Zod 4 |
+| 解析 | `pdf-parse` v2、`mammoth` |
+
+### AI SDK 用法
+
+- `useChat`（`@ai-sdk/react`）：管理对话与流式渲染，`sendMessage` + `status` 驱动交互
+- `streamText` + `toUIMessageStream` / `createUIMessageStreamResponse`：流式回答
+- `messageMetadata`：把 RAG 来源作为消息元数据随流下发
+- `convertToModelMessages`：把 `UIMessage[]`（parts）转为 `ModelMessage[]` 供模型消费
+- `generateObject` + Zod：结构化摘要与思维导图
+- `embed` / `embedMany`：问题与文档的向量化
+
+## 快速开始
+
+```bash
+# 1. 安装依赖
+npm install
+# Windows / WSL 若遇到 symlink 权限问题：
+npm install --no-bin-links
+
+# 2. 配置环境变量
+cp .env.example .env.local
+# 编辑 .env.local 填入 DATABASE_URL / DATABASE_URL_UNPOOLED / AI_API_KEY
+
+# 3. 启用 pgvector 扩展（必须，否则迁移会失败）
+#    在 Neon SQL Editor 或任意 Postgres 客户端执行：
+#    CREATE EXTENSION IF NOT EXISTS vector;
+
+# 4. 数据库迁移（需要 Neon 数据库可访问）
+npm run db:migrate
+
+# 5. 启动开发服务器
+npm run dev
+```
+
+访问 http://localhost:3000
+
+### 环境变量
+
+| 变量 | 说明 |
+| --- | --- |
+| `DATABASE_URL` | 运行时连接串（Neon **pooled**） |
+| `DATABASE_URL_UNPOOLED` | 迁移用直连串，缺失时 `drizzle.config.ts` 会直接报错 |
+| `AI_API_KEY` | OpenAI 或兼容网关的 API Key |
+| `AI_BASE_URL` | 可选，默认走代码内置网关；建议显式指定 |
+| `AI_CHAT_MODEL` | 默认 `gpt-5.5`（须在当前网关可用） |
+| `AI_EMBEDDING_MODEL` | 默认 `nemotron-3-embed-1b`（2048 维） |
+
+> 模型与维度的唯一来源是 `src/lib/ai-config.ts`。**更换 embedding 模型必须同步改 `EMBEDDING_DIMENSIONS` 并重新迁移**，否则入库会因维度不匹配失败。
+
+## 向量索引
+
+当前 embedding 模型输出 **2048 维**，而 pgvector（实测 0.8.6）的 HNSW / IVFFlat 索引上限为 **2000 维**，因此 `chunks.embedding` **未建向量索引**，检索走精确扫描。对小规模数据集（数千片段内）性能足够，也避免了索引与维度不匹配的迁移陷阱。
+
+若换成 ≤2000 维的模型（如 OpenAI `text-embedding-3-small` 的 1536 维），可恢复索引：
+
+1. 修改 `src/lib/ai-config.ts` 的 `EMBEDDING_DIMENSIONS` 与 `DEFAULT_EMBEDDING_MODEL`
+2. 在 `src/db/schema.ts` 的 `chunks` 索引数组里加回：
+   ```ts
+   index("chunks_embedding_idx").using("hnsw", table.embedding.op("vector_cosine_ops"))
+   ```
+3. `npm run db:generate && npm run db:migrate`（空表才能安全改维度，已有数据需先清空 chunks）
+
+## 数据模型
+
+- **documents**：`name` / `mimeType` / `size` / `status`(processing\|ready\|failed) / `pageCount` / `summary`(jsonb) / `mindmap`(jsonb)
+- **chunks**：`documentId` / `content` / `chunkIndex` / `pageNumber` / `tokenCount` / `embedding`(vector 2048，无向量索引，见「向量索引」)
+- **document_stats**：`documentId`(unique) / `chunkCount` / `avgDistance`
+- **conversations**：`title` / `createdAt` / `updatedAt`
+- **conversation_messages**：`conversationId` / `role` / `parts`(jsonb) / `metadata`(jsonb)
+
+迁移文件位于 `drizzle/`：`0000` 初始结构、`0001` 会话与摘要字段、`0002` 向量维度改为 2048 并移除超限索引。**不要修改已应用的迁移文件。**
+
+## API
+
+| 方法 | 路径 | 说明 |
+| --- | --- | --- |
+| GET | `/api/documents` | 文档列表（含 chunk 数、是否已生成摘要/导图） |
+| POST | `/api/documents` | 上传并处理文档（FormData `file`） |
+| GET | `/api/documents/[id]` | 文档详情 + 全部片段 |
+| GET/POST | `/api/documents/[id]/summary` | 读取 / 生成结构化摘要 |
+| GET/POST | `/api/documents/[id]/mindmap` | 读取 / 生成思维导图 |
+| POST | `/api/chat` | RAG 流式问答，来源随流下发 |
+| GET | `/api/config` | 返回当前生效模型（不含任何密钥） |
+| GET/POST | `/api/conversations` | 会话列表 / 新建会话 |
+| DELETE | `/api/conversations/[id]` | 删除会话 |
+| GET/POST | `/api/conversations/[id]/messages` | 读取 / 追加会话消息 |
+
+## 部署（Vercel）
+
+### 1. 提交代码
+
+仓库已 `git init`，但**还没有任何提交**（`git log` 为空），Vercel 无法导入空仓库：
+
+```bash
+git add .
+git commit -m "feat: RAG 知识助手"
+git remote add origin https://github.com/<你的用户名>/<仓库名>.git
+git push -u origin main
+```
+
+> 注意：`.codebuddy/` 目前未被 `.gitignore` 忽略，是 IDE 数据。不想提交就先加进 `.gitignore`。
+
+### 2. 导入 Vercel
+
+在 Vercel 选择 Import Git Repository，其余保持默认即可：
+
+| 项 | 值 |
+| --- | --- |
+| Framework Preset | Next.js（自动识别） |
+| Build Command | `npm run build`（默认） |
+| Install Command | `npm install`（默认） |
+| Root Directory | `./` |
+
+### 3. 配置环境变量
+
+在 Project Settings → Environment Variables 填入（`.env.local` 已被忽略，不会上传）：
+
+| 变量 | 说明 |
+| --- | --- |
+| `DATABASE_URL` | Neon **pooled** 连接串（服务端运行时） |
+| `DATABASE_URL_UNPOOLED` | 直连串（迁移用；Vercel 上一般不跑迁移，可填） |
+| `AI_API_KEY` | 网关密钥 |
+| `AI_BASE_URL` | 网关地址，如 `https://yujianwudi.top/v1` |
+| `AI_CHAT_MODEL` | 可选，默认 `gpt-5.5` |
+| `AI_EMBEDDING_MODEL` | 可选，默认 `nemotron-3-embed-1b` |
+
+### 4. 确认数据库
+
+Neon 需启用 pgvector（已在本库启用）：
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+迁移已在本地应用，Vercel 部署时**无需**再跑。若要在 CI 里跑，需能连到 `DATABASE_URL_UNPOOLED`。
+
+### 5. 部署前必须知道的两个限制
+
+**① 请求体大小**：`MAX_FILE_SIZE` 目前是 10MB，但 Vercel Serverless Function 的请求体上限是 **4.5MB**（Vercel 硬限制，改 `maxDuration` 无效）。超过 4.5MB 的文档会上传失败。解决办法：把 `src/app/api/documents/route.ts` 的 `MAX_FILE_SIZE` 改成 4MB，或改用 Vercel Blob 做客户端直传。
+
+**② 函数超时**：`/api/documents` 设了 `maxDuration = 300`，而 **Hobby 套餐上限 60s**。在 Hobby 上要么改成 `60`，要么升级 Pro；大文档建议改为异步任务 + 状态轮询。
+
+**③ 没有鉴权**：项目是单用户设计，部署到公网后任何人都能上传文档、发起问答，会真实消耗你的 API 额度。建议至少加一层访问口令，或只在 Vercel 上设置密码保护（Vercel 的 Deployment Protection / Password Protection 可零代码开启）。
+
+## 故障排查
+
+### `'drizzle-kit' / 'next' / 'tsc' 不是内部或外部命令`
+
+依赖若用 `npm install --no-bin-links` 安装（Windows 无 symlink 权限时常这么做），`node_modules/.bin` 会是空的，所有 npm script 都会报这个错。本项目 script 已改为 `node ./node_modules/<pkg>/<entry>` 直接调用真实入口，因此不受影响；但 `npx drizzle-kit` 仍不可用，请用 `npm run db:migrate`。
+
+### 迁移报 `type "vector" does not exist` 或迁移无声失败
+
+Neon 默认**没有**启用 pgvector。先执行：
+
+```sql
+CREATE EXTENSION IF NOT EXISTS vector;
+```
+
+再 `npm run db:migrate`。
+
+### 上传 PDF 报 `Setting up fake worker failed: Cannot find module ... pdf.worker.mjs`
+
+`pdf-parse` v2 依赖 `pdfjs-dist`，它会按打包产物路径去 import `pdf.worker.mjs`；一旦被打包进 server chunk 就解析不到。
+
+`next.config.ts` 已通过 `serverExternalPackages: ["pdf-parse", "pdfjs-dist"]` 让 Node 原生加载。**改完配置需要重启 dev 服务器**（Next 通常会自行重载，若仍报错请手动重启）。
+
+### 模型明明可用，却报 `No available channel`
+
+如果你用 `curl` 直接打 `/v1/chat/completions` 可以，但应用里报这个错，多半是 **API 形态**问题：`@ai-sdk/openai` 里 `provider(modelId)` 默认走 `/v1/responses`（Responses API），多数 OpenAI 兼容网关只实现 `/v1/chat/completions`。
+
+本项目已固定使用 `getProvider().chat(...)`。若接入 OpenAI 官方并想用 Responses API，改 `src/lib/ai.ts` 的 `getChatModel()` 为 `.responses(...)`。
+
+### `No available channel for model <模型名>`（模型确实不存在）
+
+当前网关**没有**该模型。先列出可用模型：
+
+```bash
+curl -H "Authorization: Bearer $AI_API_KEY" https://<你的网关>/v1/models
+```
+
+再把 `AI_CHAT_MODEL` / `AI_EMBEDDING_MODEL` 改成列表里存在的名字。注意：这不是代码问题，也不一定是密钥无效——网关有密钥但无该模型通道时同样报这个错。
+
+### 应用报 `read ECONNRESET` / 连接超时
+
+本项目实测出现过间歇性 `read ECONNRESET`：同一时刻直连端点连续成功、`-pooler` 端点 3 次中仅 1 次成功，稍后恢复后又 5/5 正常。多为 Neon 计算节点冷启动或本地网络抖动。
+
+处理顺序：先重试一次；若持续失败，**本地可临时把 `DATABASE_URL` 也填成直连串**（与 `DATABASE_URL_UNPOOLED` 相同）。部署到 Vercel 时应换回 pooled 端点以获得连接复用。
+
+## 已知限制
+
+- 单用户设计，**无用户认证与多用户隔离**
+- 未提供文档删除（数据库已配置级联，可自行加路由）
+- `.docx` 解析能力已具备（`mammoth`），但上传入口仅放行 `.pdf` / `.md` / `.markdown`
+- 上传为同步处理，超大文档建议改为后台任务 + 轮询状态
+- 摘要与导图只取前 24 个片段作为上下文，超长文档会截断
+
+## 常用命令
+
+```bash
+npm run dev        # 开发服务器
+npm run build      # 生产构建
+npm run typecheck  # 类型检查
+npm run db:generate  # 生成迁移
+npm run db:migrate   # 应用迁移
+```
+
+## License
+
+MIT
