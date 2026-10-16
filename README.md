@@ -206,9 +206,17 @@ serverless 环境专属，本地通常不复现。链路是：
 
 ### 上传 PDF 报 `Setting up fake worker failed: Cannot find module ... pdf.worker.mjs`
 
-`pdf-parse` v2 依赖 `pdfjs-dist`，它会按打包产物路径去 import `pdf.worker.mjs`；一旦被打包进 server chunk 就解析不到。
+pdfjs 在 Node 下会 `import(workerSrc)` 把 worker 当普通模块加载（fake worker）。该路径是**运行时拼出来的**，打包器无法静态解析，所以 `pdf.worker.mjs` 不会被追踪进产物，serverless 上就报找不到。
 
-`next.config.ts` 已通过 `serverExternalPackages: ["pdf-parse", "pdfjs-dist"]` 让 Node 原生加载。**改完配置需要重启 dev 服务器**（Next 通常会自行重载，若仍报错请手动重启）。
+解决：`src/lib/pdf-dom-shim.ts` 的 `ensurePdfWorker()` 自己 import 一次 worker——worker 模块末尾会写入 `globalThis.pdfjsWorker`，pdfjs 检测到后**跳过**那次动态 import。
+
+配套要点（改错就会复发）：
+
+- `pdfjs-dist` **不能**放进 `serverExternalPackages`，否则这里的 import 退化成运行时从 `node_modules` 读，一样找不到文件
+- `next.config.ts` 只外部化 `pdf-parse`
+- 用 `pdf.worker.min.mjs`（1.1MB）而非未压缩版（2MB），已在 `src/types/pdfjs-worker.d.ts` 补类型声明
+
+> 注意 `outputFileTracingIncludes` 不能用来修这个问题：它在 Next 16 + Turbopack 下未必生效。
 
 ### 模型明明可用，却报 `No available channel`
 
