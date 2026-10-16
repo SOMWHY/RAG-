@@ -23,7 +23,12 @@ const SUGGESTIONS = [
 type ModelInfo = { chatModel: string; embeddingModel: string };
 
 export default function HomePage() {
-  const { documents, isLoading: docsLoading, refresh: refreshDocuments } = useDocuments();
+  const {
+    documents,
+    isLoading: docsLoading,
+    refresh: refreshDocuments,
+    remove: removeDocument,
+  } = useDocuments();
   const {
     conversations,
     isLoading: convLoading,
@@ -107,6 +112,14 @@ export default function HomePage() {
     }
   };
 
+  const deleteDocument = async (id: string) => {
+    // 详情面板正开着这篇就关掉，否则会残留一个已删除的文档
+    setSelectedId((current) => (current === id ? null : current));
+    // @ 指定的标签也要同步清掉，否则会指向不存在的文档
+    setSelectedDocIds((current) => current.filter((docId) => docId !== id));
+    return removeDocument(id);
+  };
+
   const submit = (text: string) => {
     const value = text.trim();
     if (!value || isStreaming) return;
@@ -159,6 +172,7 @@ export default function HomePage() {
             selectedId={selectedId}
             onSelect={setSelectedId}
             onRefresh={refreshDocuments}
+            onDelete={deleteDocument}
           />
           <ConversationList
             conversations={conversations}

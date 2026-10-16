@@ -53,9 +53,31 @@ export function useDocuments() {
     }
   }, []);
 
+  /**
+   * 删除文档。先乐观移除让条目立刻消失，失败则拉回真实列表 ——
+   * 否则条目会「消失了但其实还在」，下次刷新又冒出来。
+   */
+  const remove = useCallback(
+    async (id: string): Promise<boolean> => {
+      setDocuments((prev) => prev.filter((doc) => doc.id !== id));
+      try {
+        const response = await fetch(`/api/documents/${id}`, { method: "DELETE" });
+        if (!response.ok) throw new Error("删除文档失败");
+        setError(null);
+        return true;
+      } catch (cause) {
+        console.error("delete document failed", cause);
+        setError(cause instanceof Error ? cause.message : "删除文档失败");
+        void refresh();
+        return false;
+      }
+    },
+    [refresh],
+  );
+
   useEffect(() => {
     void refresh();
   }, [refresh]);
 
-  return { documents, isLoading, error, refresh };
+  return { documents, isLoading, error, refresh, remove };
 }
