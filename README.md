@@ -23,6 +23,7 @@
 **会话**
 
 - 对话历史持久化：刷新后可恢复，支持多会话切换与删除
+- 指定文档提问：输入框输入 `@` 弹出文档列表，可多选；选中后本次提问只在这些文档内检索
 - 响应式：桌面三栏（文档 / 聊天 / 详情），移动端底部标签切换
 
 **账号与数据隔离**
@@ -143,7 +144,7 @@ npm run dev
 | GET | `/api/documents/[id]` | 文档详情 + 全部片段 |
 | GET/POST | `/api/documents/[id]/summary` | 读取 / 生成结构化摘要 |
 | GET/POST | `/api/documents/[id]/mindmap` | 读取 / 生成思维导图 |
-| POST | `/api/chat` | RAG 流式问答，来源随流下发 |
+| POST | `/api/chat` | RAG 流式问答，来源随流下发。可选 `documentIds: string[]` 限定检索范围 |
 | GET | `/api/config` | 返回当前生效模型（不含任何密钥） |
 | GET/POST | `/api/conversations` | 会话列表 / 新建会话 |
 | DELETE | `/api/conversations/[id]` | 删除会话 |
@@ -154,6 +155,15 @@ npm run dev
 | GET | `/api/auth/me` | 当前登录用户 |
 
 除 `/login` 与 `/api/auth/*` 外，所有路径都要求已登录：页面 302 到 `/login`，`/api/*` 返回 401。
+
+### 指定文档提问（`@` 提及）
+
+- 输入框输入 `@` 弹出候选文档，继续输入可过滤；`↑`/`↓` 移动，`Enter`/`Tab` 选中，`Esc` 关闭
+- 选中的文档显示为输入框上方的标签，可点击移除；**发送后自动清空**，作用域只针对这一次提问
+- 只有 `status = "ready"` 的文档会作为候选
+- 触发判定在 `src/lib/mention.ts`：要求 `@` 位于开头或空白之后、且其后无空白，因此 `foo@bar.com`、`a@b` 不会误触发
+- 服务端**严格限定**：指定了文档就只在这些文档内检索，命中为空就是空，不回退到全部文档
+- 安全性：检索始终带 `documents.userId` 过滤，传入他人文档 id 只会检索不到；`documentIds` 会被过滤成非空字符串数组并截断到 20 个
 
 ## 部署（Vercel）
 

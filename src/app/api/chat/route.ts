@@ -12,6 +12,9 @@ import { retrieveChunks } from "@/lib/search";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+/** 单次提问最多允许指定多少篇文档 */
+const MAX_SCOPED_DOCUMENTS = 20;
+
 function buildContext(sources: RagSource[], contents: string[]): string {
   if (!sources.length) return "没有检索到相关内容。";
   return sources
@@ -27,15 +30,28 @@ export async function POST(request: Request) {
   if (session instanceof Response) return session;
 
   try {
-    const body = (await request.json()) as { messages?: ChatUIMessage[] };
+    const body = (await request.json()) as { messages?: ChatUIMessage[]; documentIds?: unknown };
     const messages = body.messages ?? [];
+
+    // 只接受字符串数组并限制数量，避免异常输入直接进 SQL。
+    // 非法值一律当作「不限制文档」，而不是报错——前端传错时不该打断问答。
+    const documentIds = Array.isArray(body.documentIds)
+      ? body.documentIds
+          .filter((id): id is string => typeof id === "string" && id.length > 0)
+          .slice(0, MAX_SCOPED_DOCUMENTS)
+      : [];
 
     const latestUser = [...messages].reverse().find((message) => message.role === "user");
     const query = latestUser ? getMessageText(latestUser) : "";
     if (!query) return Response.json({ error: "请输入问题" }, { status: 400 });
 
-    // 检索只在当前用户的文档范围内进行
-    const hits = await retrieveChunks(query, 6, session.sub);
+    // 检索只在当前用户的文档范围内进行；指定文档时再收窄到这批文档
+    const hits = await retrieveChunks(
+      query,
+      6,
+      session.sub,
+      documentIds.length ? documentIds : undefined,
+    );
     const sources: RagSource[] = hits.map((hit) => ({
       id: hit.id,
       documentName: hit.documentName,

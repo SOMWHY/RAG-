@@ -38,6 +38,8 @@ export default function HomePage() {
   const [mobileView, setMobileView] = useState<"chat" | "docs">("chat");
   const [input, setInput] = useState("");
   const [modelInfo, setModelInfo] = useState<ModelInfo | null>(null);
+  /** 本次提问限定的文档；为空表示检索全部文档 */
+  const [selectedDocIds, setSelectedDocIds] = useState<string[]>([]);
 
   const conversationIdRef = useRef<string | null>(null);
   conversationIdRef.current = conversationId;
@@ -108,8 +110,11 @@ export default function HomePage() {
   const submit = (text: string) => {
     const value = text.trim();
     if (!value || isStreaming) return;
-    void sendMessage({ text: value });
+    // 限定的文档通过 body 下发，服务端只在这些文档内检索
+    const scope = selectedDocIds.length ? selectedDocIds : undefined;
+    void sendMessage({ text: value }, scope ? { body: { documentIds: scope } } : undefined);
     setInput("");
+    setSelectedDocIds([]);
   };
 
   return (
@@ -195,6 +200,9 @@ export default function HomePage() {
             value={input}
             isLoading={isStreaming}
             disabled={!hasDocuments}
+            documents={documents}
+            selectedDocIds={selectedDocIds}
+            onSelectedDocIdsChange={setSelectedDocIds}
             onChange={setInput}
             onSubmit={() => submit(input)}
             onStop={() => stop()}

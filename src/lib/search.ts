@@ -1,5 +1,5 @@
 import { embed } from "ai";
-import { and, cosineDistance, eq, gt, sql } from "drizzle-orm";
+import { and, cosineDistance, eq, gt, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { chunks, documents } from "@/db/schema";
 import { getEmbeddingModel } from "@/lib/ai";
@@ -23,11 +23,16 @@ export type RetrievedChunk = {
  *
  * userId 是必填的第三个参数：**漏了它不会报错**，只会导致检索到别人的向量，
  * 答案莫名其妙却查不出原因。chunks 表刻意不加 userId，统一靠 join documents 过滤。
+ *
+ * documentIds 为空表示不限制文档（检索当前用户全部已就绪文档）；传入时**严格限定**
+ * 在这批文档内，命中为空就是空，不回退。归属过滤始终保留，因此即便传入他人的
+ * 文档 id 也只会检索不到，不存在越权。
  */
 export async function retrieveChunks(
   query: string,
   limit = 6,
   userId: string,
+  documentIds?: string[],
 ): Promise<RetrievedChunk[]> {
   const { embedding } = await embed({ model: getEmbeddingModel(), value: query });
 
@@ -51,6 +56,7 @@ export async function retrieveChunks(
         sql`${chunks.embedding} is not null`,
         eq(documents.status, "ready"),
         eq(documents.userId, userId),
+        documentIds?.length ? inArray(documents.id, documentIds) : undefined,
         gt(similarity, MIN_SIMILARITY),
       ),
     )
